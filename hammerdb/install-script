@@ -125,7 +125,7 @@ install_postgres()
 	#
 	# Installing Postgres Server and tools
 	#
-	dnf -y install postgresql.x86_64 postgresql-contrib.x86_64 postgresql-server.x86_64
+	dnf -y install postgresql.x86_64 postgresql-contrib.x86_64 postgresql-server.x86_64 glibc-langpack-en libpq
 
 	cd /usr/local/HammerDB
 	cp -R /tmp/hammerdb-tpcc/postgres/* .
