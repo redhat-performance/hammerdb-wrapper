@@ -232,7 +232,7 @@ setenforce 0
 #
 # Retrieve the hammerdb script
 #
-curl -o /tmp/hammerdb-tpcc.tar http://people.redhat.com/srao/Hammerdb-Kit/hammerdb-tpcc.tar
+curl -o /tmp/hammerdb-tpcc.tar https://people.redhat.com/srao/Hammerdb-Kit/hammerdb-tpcc.tar
 
 #
 # Install the hammerdb
