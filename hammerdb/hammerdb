@@ -10,7 +10,7 @@ tuned_original=""
 disks=none
 user=""
 fs="xfs"
-tools_git=https://github.com/dvalinrh/test_tools
+tools_git=https://github.com/redhat-performance/test_tools-wrappers
 warehouses=""
 
 usage()
@@ -56,7 +56,7 @@ for arg in "$@"; do
 done
 
 if [ ! -d "test_tools" ]; then
-        git clone $tools_git
+        git clone $tools_git tools_git
         if [ $? -ne 0 ]; then
                 echo pulling git $tools_git failed.
                 exit
