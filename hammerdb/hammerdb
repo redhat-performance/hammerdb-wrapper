@@ -8,7 +8,7 @@ if [[ $0 == "./"* ]]; then
 	else
 		exec_dir=`echo $0 | cut -d'/' -f 1-${chars} | cut -d'.' -f2-`
 		curdir=`pwd`
-		exec_dir="${curdir}${run_dir}"
+		exec_dir="${curdir}${exec_dir}"
 	fi
 else
 	chars=`echo $0 | awk -v RS='/' 'END{print NR-1}'`
