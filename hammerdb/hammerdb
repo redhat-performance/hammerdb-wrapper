@@ -15,8 +15,6 @@ else
 	exec_dir=`echo $0 | cut -d'/' -f 1-${chars}`
 fi
 
-value=`echo "${0}" | awk -F"/" '{print NF-1}'`
-exec_dir=`echo $0 | cut -d'/' -f 1-${value}`
 test_name="hammerdb"
 
 ## Disable selinux
