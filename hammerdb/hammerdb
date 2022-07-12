@@ -15,6 +15,17 @@ else
 	exec_dir=`echo $0 | cut -d'/' -f 1-${chars}`
 fi
 
+
+if [ ! -f "/tmp/hammerdb.out" ]; then
+        command="${0} $@"
+        echo $command
+        $command &> /tmp/hammerdb.out
+	cat /tmp/hammerdb.out
+	rm /tmp/hammerdb.out
+	exit
+fi
+
+
 test_name="hammerdb"
 
 ## Disable selinux
@@ -241,16 +252,24 @@ cd $exec_dir
 echo ./run_hammerdb -m /perf1 -t ${test} ${users_to_run} ${warehouses} > run_this
 chmod 755 run_this
 ./run_this
+
 cd /usr/local
 mv HammerDB $test
 cp ${curdir}/meta_data.yml $test
+pushd $test
+files=`ls test*out`
+if [ $? -ne 0 ]; then
+	echo Failed >> test_results_report
+else
+	echo Ran >> test_results_report
+fi
+
+cp /tmp/hammerdb.out .
+popd
 tar cf /tmp/results_hammerdb_${test}_${to_tuned_setting}.tar $test
-mv $test HammerDB
 if [[ $to_tuned_setting != "none" ]]; then
 	tuned-adm profile $tuned_original
 fi
 ## Re-enable selinux
 setenforce 1
-
 $TOOLS_BIN/lvm_delete --lvm_vol hammerdb --lvm_grp hammerdb --mount_pnt /perf1
-exit 0
