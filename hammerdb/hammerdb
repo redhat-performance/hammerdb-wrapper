@@ -234,8 +234,8 @@ if [[ $test == "none" ]]; then
 fi
 
 if [ $to_pbench -eq 1 ]; then
-	echo $TOOLS_BIN/execute_via_pbench --cmd_executing "$0" $arguments --test $test_name --spacing 11 --pbench_stats $to_pstats
-	$TOOLS_BIN/execute_via_pbench --cmd_executing "$0" $arguments --test $test_name --spacing 11 --pbench_stats $to_pstats
+	echo $TOOLS_BIN/execute_via_pbench --cmd_executing "$0" $arguments --test ${test_name}_${test} --spacing 11 --pbench_stats $to_pstats
+	$TOOLS_BIN/execute_via_pbench --cmd_executing "$0" $arguments --test ${test_name}_${test} --spacing 11 --pbench_stats $to_pstats
 	exit
 fi
 
@@ -266,6 +266,10 @@ fi
 
 cp /tmp/hammerdb.out .
 popd
+rm -f results_pbench.tar 
+
+find -L $test  -type f | tar --transform 's/.*\///g' -cf /tmp/results_pbench.tar --files-from=/dev/stdin
+
 tar cf /tmp/results_hammerdb_${test}_${to_tuned_setting}.tar $test
 if [[ $to_tuned_setting != "none" ]]; then
 	tuned-adm profile $tuned_original
