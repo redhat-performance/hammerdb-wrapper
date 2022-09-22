@@ -268,9 +268,10 @@ cp /tmp/hammerdb.out .
 popd
 rm -f results_pbench.tar 
 
-find -L $test  -type f | tar --transform 's/.*\///g' -cf /tmp/results_pbench.tar --files-from=/dev/stdin
+find -L $test  -type f  -exec grep -Iq . {} \; -print | grep -v enc | grep -v tcl | grep -v "\.h" | grep -v "\.sh" | grep -v "\.tm" | grep -v xml | tar --transform 's/.*\///g' -cf /tmp/results_pbench.tar --files-from=/dev/stdin
 
-tar cf /tmp/results_hammerdb_${test}_${to_tuned_setting}.tar $test
+find -L $test  -type f  -exec grep -Iq . {} \; -print | tar cf /tmp/results_hammerdb_${test}_${to_tuned_setting}.tar --files-from=/dev/stdin
+
 if [[ $to_tuned_setting != "none" ]]; then
 	tuned-adm profile $tuned_original
 fi
