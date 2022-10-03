@@ -125,7 +125,9 @@ fi
 # to_tuned_setting: tuned setting
 #
 
+${curdir}/test_tools/gather_data ${curdir}
 source test_tools/general_setup "$@"
+
 
 dnf -y install lvm2
 
@@ -274,7 +276,8 @@ chmod 755 run_this
 
 cd /usr/local
 mv HammerDB $test
-cp ${curdir}/meta_data.yml $test
+
+${curdir}/test_tools/move_data $curdir $test
 pushd $test
 files=`ls test*out`
 if [ $? -ne 0 ]; then
