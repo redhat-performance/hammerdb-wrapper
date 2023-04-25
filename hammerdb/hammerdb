@@ -52,7 +52,7 @@ test_name="hammerdb"
 setenforce 0
 tuned_original=""
 disks=none
-log_diskjs=""
+log_disks=""
 user=""
 fs="xfs"
 tools_git=https://github.com/redhat-performance/test_tools-wrappers
