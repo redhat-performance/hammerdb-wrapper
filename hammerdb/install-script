@@ -159,8 +159,13 @@ install_postgres()
 	ln -sf ${mountpoint}/postgres_data /var/lib/pgsql/data
 	chmod 700 ${mountpoint}/postgres_data
 	chown -R postgres:postgres ${mountpoint}/postgres_data
+        mkdir -p ${log_mount_point}/postgres_log
+        chown -R mysql:mysql ${log_mount_point}/postgres_log
 
 	postgresql-setup initdb
+	sleep 10
+	mv /var/lib/pgsql/data/pg_wal ${log_mount_point}/postgres_log
+	ln -sf ${log_mount_point}/postgres_log/pg_wal /var/lib/pgsql/data/pg_wal
 
 	totmem=`cat /proc/meminfo |grep "MemTotal:" | awk '{print $2}'`
 
