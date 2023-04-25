@@ -19,6 +19,7 @@
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 
 arguments="$@"
+log_mount=""
 
 curdir=`pwd`
 if [[ $0 == "./"* ]]; then
@@ -51,6 +52,7 @@ test_name="hammerdb"
 setenforce 0
 tuned_original=""
 disks=none
+log_diskjs=""
 user=""
 fs="xfs"
 tools_git=https://github.com/redhat-performance/test_tools-wrappers
@@ -166,8 +168,24 @@ create_and_mount_fs()
 	mkdir /perf1
 	$TOOLS_BIN/create_filesystem --fs_type $fs --mount_dir /perf1 --device /dev/hammerdb/hammerdb
 	if [ $? -ne 0 ]; then
-		echo filesystem create failedd.
+		echo filesystem create failed.
 		exit 1
+	fi
+
+	if [[ $log_disks != "" ]]; then
+		log_disks=`echo $log_disks | sed "s/,/ /g"`
+		umount /perf2
+		mkdir /perf2
+		$TOOLS_BIN/lvm_create --devices "${log_disks}" --lvm_vol log_hammerdb --lvm_grp log_hammerdb --wipefs
+		if [ $? -ne 0 ]; then
+			echo LVM create of log disk failed.
+			exit 1
+		fi
+		$TOOLS_BIN/create_filesystem --fs_type $fs --mount_dir /perf2 --device /dev/log_hammerdb/log_hammerdb
+		if [ $? -ne 0 ]; then
+			echo filesystem create for log failed.
+			exit 1
+		fi
 	fi
 }
 
@@ -179,6 +197,7 @@ ARGUMENT_LIST=(
 	"filesys"
 	"home_parent"
 	"iterations"
+	"log_disks"
 	"run_user"
 	"sub_test"
 	"tools_git"
@@ -220,6 +239,11 @@ while [[ $# -gt 0 ]]; do
                         iterations=${2}
 			shift 2
                 ;;
+		--log_disks)
+			log_mount="-M /perf2"
+			log_disks=${2}
+			shift 2
+		;;
 		--users)
 			setto=`echo $2 | sed "s/,/ /g"`
 			users_to_run="-u \"${setto}\""
@@ -270,7 +294,7 @@ if [[ $to_tuned_setting != "none" ]]; then
 	tuned-adm profile $to_tuned_setting
 fi
 cd $exec_dir
-echo ./run_hammerdb -m /perf1 -t ${test} ${users_to_run} ${warehouses} > run_this
+echo ./run_hammerdb -m /perf1 -t ${test} ${users_to_run} ${warehouses} ${log_mount} > run_this
 chmod 755 run_this
 ./run_this
 

@@ -23,6 +23,7 @@
 disks=none
 mountpoint=none
 db_type=none
+log_mount_point="none"
 
 install_mssql()
 {
@@ -97,9 +98,12 @@ install_mariadb()
 	#
 	# Clean up any residual stuff and set up the directories
 	#
-	rm -rf ${mountpoint}/mysql/*
+	rm -rf ${mountpoint}/mysql/* ${log_mount_point}/mysql/log
 	mkdir -p ${mountpoint}/mysql/data
 	chown -R mysql:mysql ${mountpoint}/mysql
+        mkdir -p ${log_mount_point}/mysql/log
+        chown -R mysql:mysql ${log_mount_point}/mysql
+
 
 	totmem=`cat /proc/meminfo | grep "MemTotal:" | awk '{print $2}'`
 	#
@@ -119,6 +123,7 @@ install_mariadb()
 	else
    		sed -i "s/^innodb_buffer_pool_size=.*/innodb_buffer_pool_size=64000M/" my.cnf
 	fi
+	sed -i "/innodb_file_per_table/a innodb_log_group_home_dir = ${log_mount_point}\/mysql\/log" my.cnf
 
 	/usr/bin/cp my.cnf /etc/my.cnf
 
@@ -127,7 +132,7 @@ install_mariadb()
 	#echo "UPDATE mysql.user SET Password=PASSWORD('100yard-')  WHERE User='root';" > input
 	#echo "GRANT ALL ON *.* to root@'%' IDENTIFIED BY '100yard-';" >> input
 	echo "use mysql;" > input
-    echo "SET PASSWORD FOR 'root'@localhost = PASSWORD('mysql');" > input
+    	echo "SET PASSWORD FOR 'root'@localhost = PASSWORD('mysql');" > input
 	echo "flush privileges;" >> input
 	echo "exit" >> input
 
@@ -220,6 +225,10 @@ do
 			disks=$2
 			shift 2
 		;;
+		-M)
+			log_mount_point=$2
+			shift 2
+		;;
 		-m)
 			mountpoint=$2
 			shift 2
@@ -284,6 +293,9 @@ else
 	echo ${mountpoint}
 fi
 
+if [[ $log_mount_point == "none" ]]; then
+	log_mount_point=${mountpoint}
+fi
 if [[ $db_type == "mssql" ]]; then
 	install_mssql
 	exit
