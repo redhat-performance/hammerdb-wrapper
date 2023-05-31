@@ -131,7 +131,6 @@ install_mariadb()
 
 	#echo "UPDATE mysql.user SET Password=PASSWORD('100yard-')  WHERE User='root';" > input
 	#echo "GRANT ALL ON *.* to root@'%' IDENTIFIED BY '100yard-';" >> input
-	echo "use mysql;" > input
     	echo "SET PASSWORD FOR 'root'@localhost = PASSWORD('mysql');" > input
 	echo "flush privileges;" >> input
 	echo "exit" >> input
