@@ -24,6 +24,7 @@
 # Automates the installation and execution of the hammerdb tests, mariadb, postgress and
 # mssql.
 #
+echo this is a test only
 mountpoint=none
 log_mount_point=""
 disklist=none
