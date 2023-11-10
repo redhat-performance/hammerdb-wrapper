@@ -37,19 +37,19 @@ install_mssql()
 	cp -R  /tmp/hammerdb-tpcc/mssql/* .
 
 
-	rm -rf ${mountpoint}/mssql_data/*
-	mkdir -p ${mountpoint}/mssql_data
-	chown -R mssql:mssql ${mountpoint}/mssql_data 
-	chown -R mssql:mssql /perf1/mssql_data
+#	rm -rf ${mountpoint}/mssql_data/*
+#	mkdir -p ${mountpoint}/mssql_data
+#	chown -R mssql:mssql ${mountpoint}/mssql_data 
+#	chown -R mssql:mssql /perf1/mssql_data
 	
-	systemctl stop mssql-server
+#	systemctl stop mssql-server
 
 	cd /opt/mssql/bin/
 	mkdir /var/opt/mssql/secrets/
 
 	MSSQL_SA_PASSWORD="100yard-"
 	export MSSQL_SA_PASSWORD
-    export MSSQL_PID="Evaluation"
+        export MSSQL_PID="Evaluation"
 
 	rm -rf /var/opt/mssql
 	chmod 777 /var/opt
@@ -64,18 +64,18 @@ install_mssql()
 	sleep 30
 	systemctl stop mssql-server
 
-	cd /var/opt/mssql
-	mv data ${mountpoint}/mssql_data
-	ln -sf ${mountpoint}/mssql_data/data .
+#	cd /var/opt/mssql
+#	mv data ${mountpoint}/mssql_data
+#	ln -sf ${mountpoint}/mssql_data/data .
 
-	systemctl disable mssql-server.service
-	systemctl restart mssql-server.service
+#	systemctl disable mssql-server.service
+#	systemctl restart mssql-server.service
 
 	cd /usr/local/HammerDB
 
-	./createdb_mssql_mnt.sh -m ${mountpoint} > crdb.out 2>&1
-
-	./update_temp_mnt.sh -m ${mountpoint} > upd_tmp.out 2>&1
+#	./createdb_mssql_mnt.sh -m ${mountpoint} > crdb.out 2>&1
+#
+#	./update_temp_mnt.sh -m ${mountpoint} > upd_tmp.out 2>&1
 }
 
 install_mariadb()
@@ -98,11 +98,11 @@ install_mariadb()
 	#
 	# Clean up any residual stuff and set up the directories
 	#
-	rm -rf ${mountpoint}/mysql/* ${log_mount_point}/mysql/log
-	mkdir -p ${mountpoint}/mysql/data
-	chown -R mysql:mysql ${mountpoint}/mysql
-        mkdir -p ${log_mount_point}/mysql/log
-        chown -R mysql:mysql ${log_mount_point}/mysql
+#	rm -rf ${mountpoint}/mysql/* ${log_mount_point}/mysql/log
+#	mkdir -p ${mountpoint}/mysql/data
+#	chown -R mysql:mysql ${mountpoint}/mysql
+#        mkdir -p ${log_mount_point}/mysql/log
+#        chown -R mysql:mysql ${log_mount_point}/mysql
 
 
 	totmem=`cat /proc/meminfo | grep "MemTotal:" | awk '{print $2}'`
@@ -117,28 +117,28 @@ install_mariadb()
 	# Configure the mariadb config file with mountpoint and bufferpool
 	#
 
-	sed -i "s+^datadir=.*+datadir=${mountpoint}\/mysql\/data+" my.cnf
-	if [ $totmem_BP -lt 64000 ]; then
-   		sed -i "s/^innodb_buffer_pool_size=.*/innodb_buffer_pool_size=${totmem_BP}M/" my.cnf
-	else
-   		sed -i "s/^innodb_buffer_pool_size=.*/innodb_buffer_pool_size=64000M/" my.cnf
-	fi
-	sed -i "/innodb_file_per_table/a innodb_log_group_home_dir = ${log_mount_point}\/mysql\/log" my.cnf
+#	sed -i "s+^datadir=.*+datadir=${mountpoint}\/mysql\/data+" my.cnf
+#	if [ $totmem_BP -lt 64000 ]; then
+#   		sed -i "s/^innodb_buffer_pool_size=.*/innodb_buffer_pool_size=${totmem_BP}M/" my.cnf
+#	else
+#   		sed -i "s/^innodb_buffer_pool_size=.*/innodb_buffer_pool_size=64000M/" my.cnf
+#	fi
+#	sed -i "/innodb_file_per_table/a innodb_log_group_home_dir = ${log_mount_point}\/mysql\/log" my.cnf
+#
+#	/usr/bin/cp my.cnf /etc/my.cnf
 
-	/usr/bin/cp my.cnf /etc/my.cnf
-
-	systemctl restart mariadb.service
+#	systemctl restart mariadb.service
 
 	#echo "UPDATE mysql.user SET Password=PASSWORD('100yard-')  WHERE User='root';" > input
 	#echo "GRANT ALL ON *.* to root@'%' IDENTIFIED BY '100yard-';" >> input
-    	echo "SET PASSWORD FOR 'root'@localhost = PASSWORD('mysql');" > input
-	echo "flush privileges;" >> input
-	echo "exit" >> input
+#    	echo "SET PASSWORD FOR 'root'@localhost = PASSWORD('mysql');" > input
+#	echo "flush privileges;" >> input
+#	echo "exit" >> input
+#
+#	mysql -u root < input
 
-	mysql -u root < input
-
-	sleep 30
-	systemctl restart mariadb.service
+#	sleep 30
+#	systemctl restart mariadb.service
 }
 
 install_postgres()
@@ -151,45 +151,45 @@ install_postgres()
 	cd /usr/local/HammerDB
 	cp -R /tmp/hammerdb-tpcc/postgres/* .
 
-	rm -rf /var/lib/pgsql/data
-	rm -rf ${mountpoint}/postgres_data
+#	rm -rf /var/lib/pgsql/data
+#	rm -rf ${mountpoint}/postgres_data
 
-	mkdir -p ${mountpoint}/postgres_data
-	ln -sf ${mountpoint}/postgres_data /var/lib/pgsql/data
-	chmod 700 ${mountpoint}/postgres_data
-	chown -R postgres:postgres ${mountpoint}/postgres_data
-        mkdir -p ${log_mount_point}/postgres_log
-        chown -R mysql:mysql ${log_mount_point}/postgres_log
+#	mkdir -p ${mountpoint}/postgres_data
+#	ln -sf ${mountpoint}/postgres_data /var/lib/pgsql/data
+#	chmod 700 ${mountpoint}/postgres_data
+#	chown -R postgres:postgres ${mountpoint}/postgres_data
+#        mkdir -p ${log_mount_point}/postgres_log
+#        chown -R mysql:mysql ${log_mount_point}/postgres_log
 
-	postgresql-setup initdb
-	sleep 10
-	mv /var/lib/pgsql/data/pg_wal ${log_mount_point}/postgres_log
-	ln -sf ${log_mount_point}/postgres_log/pg_wal /var/lib/pgsql/data/pg_wal
+#	postgresql-setup initdb
+#	sleep 10
+#	mv /var/lib/pgsql/data/pg_wal ${log_mount_point}/postgres_log
+#	ln -sf ${log_mount_point}/postgres_log/pg_wal /var/lib/pgsql/data/pg_wal
 
-	totmem=`cat /proc/meminfo |grep "MemTotal:" | awk '{print $2}'`
+#	totmem=`cat /proc/meminfo |grep "MemTotal:" | awk '{print $2}'`
 
 	#
 	# Change shared_buffer size based on available memory
 	#
-	totmem_MB=`expr $totmem / 1024`
-	totmem_BP=`expr $totmem_MB / 2`   # Buffer pool is half of physical memory
-	#
+#	totmem_MB=`expr $totmem / 1024`
+#	totmem_BP=`expr $totmem_MB / 2`   # Buffer pool is half of physical memory
+#	#
 	# IF total memory is more than 128G then bufferpool is set to 64G else set to half of physical memory
 	#
-	if [ ${totmem_BP} -lt 64000 ]; then
-   		sed -i "s/^shared_buffers =.*/shared_buffers = ${totmem_BP}MB/" postgresql.conf
-	else
-	   	sed -i "s/^shared_buffers =.*/shared_buffers = 64000MB/" postgresql.conf
-	fi
+#	if [ ${totmem_BP} -lt 64000 ]; then
+#   		sed -i "s/^shared_buffers =.*/shared_buffers = ${totmem_BP}MB/" postgresql.conf
+#	else
+#	   	sed -i "s/^shared_buffers =.*/shared_buffers = 64000MB/" postgresql.conf
+#	fi
+#
+#	/usr/bin/cp -f pg_hba.conf /var/lib/pgsql/data
+#	/usr/bin/cp -f postgresql.conf /var/lib/pgsql/data
+#	systemctl restart postgresql
+#	echo "alter role postgres password 'postgres'" > input
 
-	/usr/bin/cp -f pg_hba.conf /var/lib/pgsql/data
-	/usr/bin/cp -f postgresql.conf /var/lib/pgsql/data
-	systemctl restart postgresql
-	echo "alter role postgres password 'postgres'" > input
-
-	psql -U postgres -d postgres < input
-	sleep 30
-	systemctl restart postgresql.service
+#	psql -U postgres -d postgres < input
+#	sleep 30
+#	systemctl restart postgresql.service
 }
 
 usage()
@@ -288,21 +288,21 @@ systemctl stop mariadb
 #
 # Create filestems and mount if required
 #
-if [[ $mountpoint == *"none"* ]]; then
-	echo "using disk option"
-	umount /perf1
-	mkfs.xfs -f ${disks}
-	mkdir -p /perf1
-	mount ${disks} /perf1
-	mountpoint="/perf1"
-else
-	echo "using mountpoint option"
-	echo ${mountpoint}
-fi
+#if [[ $mountpoint == *"none"* ]]; then
+#	echo "using disk option"
+#	umount /perf1
+#	mkfs.xfs -f ${disks}
+#	mkdir -p /perf1
+#	mount ${disks} /perf1
+#	mountpoint="/perf1"
+#else
+#	echo "using mountpoint option"
+#	echo ${mountpoint}
+#fi
 
-if [[ $log_mount_point == "none" ]]; then
-	log_mount_point=${mountpoint}
-fi
+#if [[ $log_mount_point == "none" ]]; then
+#	log_mount_point=${mountpoint}
+#fi
 if [[ $db_type == "mssql" ]]; then
 	install_mssql
 	exit

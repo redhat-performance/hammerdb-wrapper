@@ -24,6 +24,7 @@
 # Automates the installation and execution of the hammerdb tests, mariadb, postgress and
 # mssql.
 #
+set -x
 mountpoint=none
 log_mount_point=""
 disklist=none
@@ -33,6 +34,7 @@ Usercount="10 20 40"
 export Usercount
 test_to_run="none"
 dbhosts="none"
+dbclient="none"
 usage()
 {
 	echo " HOST NAME or IP REQUIRED!! - see usage below"
@@ -41,18 +43,20 @@ usage()
 	echo " Usage:"
 	echo "   -h help"
 	echo "   -H <Host names separated by space> - default 127.0.0.1"
+	echo "   -C <Client host names separated by space> - default 127.0.0.1"
 	echo "   -d <device > - default none"
 	echo "   -m <mount points> - default none"
 	echo "	 -t <test to run> mariadb/postgres/mssql"
 	echo "   -u <user count> - default \"10 20 30 40 50\""
-	echo "   -w <warehouse count> - default "\500\""
+	echo "   -w <warehouse count> - default \"500\""
 	echo ""
 	echo "   Examples:"
 	echo "   ./run_hammerdb.sh -H \"dhcp31-32 dhcp31-33\" -t mariadb"
+	echo "   ./run_hammerdb.sh -H \"dhcp31-32\" -C \"dhcp31-100\" -t mariadb"
 	echo "   ./run_hammerdb.sh -H \"10.16.31.32 10.16.31.33\" -t postgres"
 	echo "   ./run_hammerdb.sh -H \"10.16.31.32 10.16.31.33\" -d \"/dev/vdb\" -t mssql"
 	echo "   ./run_hammerdb.sh -H \"10.16.31.32 10.16.31.33\" -m \"/perf1\" -t mariadb"
-	echo "   ./run_hammerdb.sh -H \"dhcp31-32 dhcp31-33" -m \"/perf1\" -w 100 -u \"10 20\" -t mariadb"
+	echo "   ./run_hammerdb.sh -H \"dhcp31-32 dhcp31-33\" -m \"/perf1\" -w 100 -u \"10 20\" -t mariadb"
 	exit
 }
 
@@ -80,7 +84,16 @@ install_it()
 		#
 		# Remote systems
 		#
-		ctr=1
+		if [[ $dbclient != "none" ]]; then
+			clctr=1
+			export clctr
+			for clntnm in ${dbclient}; do
+				export clntnm
+				ssh root@${clntnm} "./install-client-script -t $1" &
+				clctr=$((clctr + 1))
+			done
+			wait
+		fi
 		export ctr
 		for hostnm in ${dbhosts};do
 			export hostnm
@@ -133,13 +146,22 @@ run_hammerdb_users()
 		export uc
 		for hostnm in ${dbhosts}
 		do
-			export $hostnm
+			export hostnm
 			if [[ $test_to_run == "mariadb" ]]; then
-				ssh root@${hostnm} "cd /usr/local/HammerDB; cp runtest_mariadb.tcl runtest${ctr}_mariadb.tcl"
-				ssh root@${hostnm} "cd /usr/local/HammerDB; sed -i 's/^diset connection mysql_host.*/diset connection mysql_host ${hostnm}/' runtest${ctr}_mariadb.tcl"
-				ssh root@${hostnm} "cd /usr/local/HammerDB; sed -i 's/^vuset.*/vuset vu ${uc}/' runtest${ctr}_mariadb.tcl"
-				ssh root@${hostnm} "cd /usr/local/HammerDB; nohup ./hammerdbcli auto runtest${ctr}_mariadb.tcl > test_CNV_mariadb_${rundt}_${numhosts}pod_pod${ctr}_${uc}.out 2>&1 " &
-				export outputfname=test_CNV_mariadb_${rundt}_${numhosts}pod_pod${ctr}_${uc}.out
+				echo ${dbclient}
+				if [[ $dbclient != "none" ]]; then
+					ssh root@${dbclient} "cd /usr/local/HammerDB; cp runtest_mariadb.tcl runtest${ctr}_mariadb.tcl"
+					ssh root@${dbclient} "cd /usr/local/HammerDB; sed -i 's/^diset connection mysql_host.*/diset connection mysql_host ${hostnm}/' runtest${ctr}_mariadb.tcl"
+					ssh root@${dbclient} "cd /usr/local/HammerDB; sed -i 's/^vuset.*/vuset vu ${uc}/' runtest${ctr}_mariadb.tcl"
+					ssh root@${dbclient} "cd /usr/local/HammerDB; nohup ./hammerdbcli auto runtest${ctr}_mariadb.tcl > test_CNV_mariadb_${rundt}_${numhosts}pod_pod${ctr}_${uc}.out 2>&1 " &
+					export outputfname=test_CNV_mariadb_${rundt}_${numhosts}pod_pod${ctr}_${uc}.out
+				else
+					ssh root@${hostnm} "cd /usr/local/HammerDB; cp runtest_mariadb.tcl runtest${ctr}_mariadb.tcl"
+                                        ssh root@${hostnm} "cd /usr/local/HammerDB; sed -i 's/^diset connection mysql_host.*/diset connection mysql_host ${hostnm}/' runtest${ctr}_mariadb.tcl"
+                                        ssh root@${hostnm} "cd /usr/local/HammerDB; sed -i 's/^vuset.*/vuset vu ${uc}/' runtest${ctr}_mariadb.tcl"
+                                        ssh root@${hostnm} "cd /usr/local/HammerDB; nohup ./hammerdbcli auto runtest${ctr}_mariadb.tcl > test_CNV_mariadb_${rundt}_${numhosts}pod_pod${ctr}_${uc}.out 2>&1 " &
+                                        export outputfname=test_CNV_mariadb_${rundt}_${numhosts}pod_pod${ctr}_${uc}.out
+				fi
 			fi
 			if [[ $test_to_run == "mssql" ]]; then
 				ssh root@${hostnm} "cd /usr/local/HammerDB; cp runtest_mssql.tcl runtest${ctr}_mssql.tcl"
@@ -149,14 +171,22 @@ run_hammerdb_users()
 				export outputfname=test_RHV_mssql_${rundt}_${numhosts}VM_VM${ctr}_${uc}.out
 			fi
 			if [[ $test_to_run == "postgres" ]]; then
-				export hostnm
-				ssh root@${hostnm} "cd /usr/local/HammerDB; cp runtest_pg.tcl runtest${ctr}_pg.tcl"
-				ssh root@${hostnm} "cd /usr/local/HammerDB; sed -i 's/^diset connection pg_host.*/diset connection pg_host ${hostnm}/' runtest${ctr}_pg.tcl"
-				ssh root@${hostnm} "cd /usr/local/HammerDB; sed -i 's/^vuset.*/vuset vu ${uc}/' runtest${ctr}_pg.tcl"
-				ssh root@${hostnm} "cd /usr/local/HammerDB; nohup ./hammerdbcli auto runtest${ctr}_pg.tcl > test_ESX_pg_${rundt}_${numhosts}pod_pod${ctr}_${uc}.out 2>&1 " &
-				export outputfname=test_ESX_pg_${rundt}_${numhosts}pod_pod${ctr}_${uc}.out
-				ctr=$((ctr + 1))
-				export ctr
+				if [[ $dbclient != "none" ]]; then
+					ssh root@${dbclient} "cd /usr/local/HammerDB; cp runtest_pg.tcl runtest${ctr}_pg.tcl"
+	                                ssh root@${dbclient} "cd /usr/local/HammerDB; sed -i 's/^diset connection pg_host.*/diset connection pg_host ${hostnm}/' runtest${ctr}_pg.tcl"
+                                 	ssh root@${dbclient} "cd /usr/local/HammerDB; sed -i 's/^vuset.*/vuset vu ${uc}/' runtest${ctr}_pg.tcl"
+       	                          	ssh root@${dbclient} "cd /usr/local/HammerDB; nohup ./hammerdbcli auto runtest${ctr}_pg.tcl > test_ESX_pg_${rundt}_${numhosts}pod_pod${ctr}_${uc}.out 2>&1 " &
+                                 	export outputfname=test_ESX_pg_${rundt}_${numhosts}pod_pod${ctr}_${uc}.out
+                                else
+					export hostnm
+					ssh root@${hostnm} "cd /usr/local/HammerDB; cp runtest_pg.tcl runtest${ctr}_pg.tcl"
+					ssh root@${hostnm} "cd /usr/local/HammerDB; sed -i 's/^diset connection pg_host.*/diset connection pg_host ${hostnm}/' runtest${ctr}_pg.tcl"
+					ssh root@${hostnm} "cd /usr/local/HammerDB; sed -i 's/^vuset.*/vuset vu ${uc}/' runtest${ctr}_pg.tcl"
+						ssh root@${hostnm} "cd /usr/local/HammerDB; nohup ./hammerdbcli auto runtest${ctr}_pg.tcl > test_ESX_pg_${rundt}_${numhosts}pod_pod${ctr}_${uc}.out 2>&1 " &
+					export outputfname=test_ESX_pg_${rundt}_${numhosts}pod_pod${ctr}_${uc}.out
+					ctr=$((ctr + 1))
+					export ctr
+				fi
 			fi
 			ctr1=$((ctr1 + 1))
 			export ctr=1
@@ -234,6 +264,15 @@ install_install_script()
 		#
 		# copy scripts to the VMS
 		#
+                if [[ $dbclient != "none" ]]; then
+                        clctr=1
+                        export clctr
+                        for clntnm in ${dbclient}; do
+                                export clntnm
+                                scp install-client-script root@${clntnm}:/root
+                                clctr=$((clctr + 1))
+                        done
+                fi
 		for hostnm in ${dbhosts}
 		do
 			export hostnm
@@ -435,6 +474,10 @@ do
 			dbhosts=$2
 			shift 2
 		;;
+		-C)
+			dbclient=$2
+			shift 2
+		;;
 		-d)
 			disklist=$2
 			shift 2
@@ -487,7 +530,7 @@ fi
 
 if [[ $test_to_run == "mssql" ]]; then
 	if [[ $whc == "" ]]; then
-		whc=500
+		whc=100
 	fi
        	mssql_test
 fi
