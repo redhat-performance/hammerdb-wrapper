@@ -263,16 +263,11 @@ setenforce 0
 systemctl stop firewalld
 
 #
-# Retrieve the hammerdb script
+# Download kit from Gitbub and install the Hammerdb 3.2
 #
-curl -k -o /tmp/hammerdb-tpcc.tar https://people.redhat.com/srao/Hammerdb-Kit/hammerdb-tpcc.tar
-
-#
-# Install the hammerdb
-#
-cd /tmp
-tar xf hammerdb-tpcc.tar
-cd /tmp/hammerdb-tpcc/Hammerdb
+dnf install -y git
+git clone https://github.com/sanjayrao-redhat/hammerdb-3.2-kit.git
+cd hammerdb-3.2-kit/hammerdb-tpcc/Hammerdb
 unset DISPLAY
 echo "y" > input
 echo "/usr/local/HammerDB" >> input
