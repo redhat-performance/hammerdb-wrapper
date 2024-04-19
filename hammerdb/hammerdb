@@ -314,10 +314,11 @@ cp /tmp/hammerdb.out .
 popd
 rm -f results_pbench.tar 
 
-tmp_file=`mktemp /tmp/hammer_data.XXXXX`
-find -L $test  -type f  -exec grep -Iq . {} \; -print > $tmp_file
-egrep  "out|csv|report" temp | egrep -v "Hammerdb" | grep -v tcl | tar cf /tmp/results_hammerdb_${test}_${to_tuned_setting}.tar --files-from=/dev/stdin
-rm $tmp_file
+find -L $test  -type f  -exec grep -Iq . {} \; -print | grep -v enc | grep -v tcl | grep -v "\.h" | grep -v "\.sh" | grep -v "\.tm" | grep -v xml | tar --transform 's/.*\///g' -cf /tmp/results_pbench.tar --files-from=/dev/stdin
+
+find -L $test  -type f  -exec grep -Iq . {} \; -print | tar cf /tmp/results_hammerdb_${test}_${to_tuned_setting}.tar --files-from=/dev/stdin
+
+${curdir}/test_tools/save_results --curdir $curdir --home_root $to_home_root --other_files "/tmp/results_hammerdb_${test}_${to_tuned_setting}.tar" --test_name ${test_name}_$test --tuned_setting=$to_tuned_setting --version None --user $to_user
 
 if [[ $to_tuned_setting != "none" ]]; then
 	tuned-adm profile $tuned_original
