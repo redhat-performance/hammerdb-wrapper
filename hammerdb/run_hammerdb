@@ -24,35 +24,38 @@
 # Automates the installation and execution of the hammerdb tests, mariadb, postgress and
 # mssql.
 #
-mountpoint=none
+set -u
+mountpoint=
 log_mount_point=""
-disklist=none
-whc=""
-#Usercount="10 20 40 80 100"
-Usercount="10 20 40"
-export Usercount
-test_to_run="none"
-dbhosts="none"
+disklist=
+warehousecount=""
+#usercount="10 20 40 80 100"
+usercount="10 20 40"
+tests_to_run=()
+dbhosts=()
+rundate=$(date +%Y.%m.%d.%H.%M.%S)
 usage()
 {
-	echo " HOST NAME or IP REQUIRED!! - see usage below"
-	echo " Usage:"
-	echo " ./run_hammerdb.sh [-h] [-H Host names] [-d device] [-m mount point]"
-	echo " Usage:"
-	echo "   -h help"
-	echo "   -H <Host names separated by space> - default 127.0.0.1"
-	echo "   -d <device > - default none"
-	echo "   -m <mount points> - default none"
-	echo "	 -t <test to run> mariadb/postgres/mssql"
-	echo "   -u <user count> - default \"10 20 30 40 50\""
-	echo "   -w <warehouse count> - default "\500\""
-	echo ""
-	echo "   Examples:"
-	echo "   ./run_hammerdb.sh -H \"dhcp31-32 dhcp31-33\" -t mariadb"
-	echo "   ./run_hammerdb.sh -H \"10.16.31.32 10.16.31.33\" -t postgres"
-	echo "   ./run_hammerdb.sh -H \"10.16.31.32 10.16.31.33\" -d \"/dev/vdb\" -t mssql"
-	echo "   ./run_hammerdb.sh -H \"10.16.31.32 10.16.31.33\" -m \"/perf1\" -t mariadb"
-	echo "   ./run_hammerdb.sh -H \"dhcp31-32 dhcp31-33" -m \"/perf1\" -w 100 -u \"10 20\" -t mariadb"
+	cat <<EOF
+HOST NAME or IP REQUIRED!! - see usage below
+Usage:
+./run_hammerdb.sh [-h] [-H Host names] [-d device] [-m mount point]
+Usage:
+  -h help
+  -H <Host names separated by space> - default 127.0.0.1
+  -d <device > - default none
+  -m <mount points> - default none
+  -t <test to run> mariadb/postgres/mssql
+  -u <user count> - default "10 20 30 40 50"
+  -w <warehouse count> - default "500"
+
+  Examples:"
+  ./run_hammerdb.sh -H "dhcp31-32 dhcp31-33" -t mariadb
+  ./run_hammerdb.sh -H "10.16.31.32 10.16.31.33" -t postgres
+  ./run_hammerdb.sh -H "10.16.31.32 10.16.31.33" -d "/dev/vdb" -t mssql
+  ./run_hammerdb.sh -H "10.16.31.32 10.16.31.33" -m "/perf1" -t mariadb
+  ./run_hammerdb.sh -H "dhcp31-32 dhcp31-33" -m "/perf1" -w 100 -u "10 20" -t mariadb
+EOF
 	exit
 }
 
@@ -61,14 +64,7 @@ usage()
 #
 mount_check()
 {
-	if [[ $mountpoint == *"none"* ]]; then
-		if [[ $disklist == *"none"* ]]; then
-			echo "Please specify a disk device or Mount Point"
-			exit;
-		else
-			echo "Using Disks"
-		fi
-	fi
+	[[ -n "${mountpoint:-}" || -n "${disklist:?Please specify a disk device or Mount Point}" ]]
 }
 
 #
@@ -76,44 +72,67 @@ mount_check()
 #
 install_it()
 {
-	if [[ $dbhosts != "none" ]]; then
+	local test=${1:?Missing test name to install}
+	if [[ -n "${dbhosts[*]:-}" ]] ; then
+		echo "Remote install"
 		#
 		# Remote systems
 		#
-		ctr=1
-		export ctr
-		for hostnm in ${dbhosts};do
-			export hostnm
-			export disklist
-			export mountpoint
-			if [[ $mountpoint == *"none"* ]]; then
-				ssh root@${hostnm} "./install-script -d ${disklist} -t $1 ${log_mount_point}" &
+		local hostnm
+		for hostnm in "${dbhosts[@]}"; do
+			if [[ -z "${mountpoint:-}" ]]; then
+				ssh -n "root@${hostnm}" "./install-script -d '${disklist}' -t '$test' ${log_mount_point}" &
 			else
-				ssh root@${hostnm} "./install-script -m ${mountpoint} -t $1 ${log_mount_point}" & 
+				ssh -n "root@${hostnm}" "rm -rf '${mountpoint:?}/${test}'"
+				ssh -n "root@${hostnm}" "./install-script -m '${mountpoint:?}/${test}' -t '$test' ${log_mount_point}" & 
 			fi
-			ctr=$((ctr + 1))
 		done
 		wait
-		if [[ $2 != "none" ]]; then
-			for hostnm in ${dbhosts}; do
-				export hostnm
-				ssh root@${hostnm} "systemctl restart ${2}"
+		if [[ -n "${2:-}" ]] ; then
+			for hostnm in "${dbhosts[@]}"; do
+				ssh -n "root@$hostnm" systemctl restart "$2"
 			done
 		fi
 	else
+		echo "Local install"
 		#
 		# Local system
 		#
-		if [[ $mountpoint == *"none"* ]]; then
-			./install-script -d ${disklist} -t $1 ${log_mount_point}
+		if [[ -n "${mountpoint:-}" ]]; then
+			rm -rf "${mountpoint:?}/$test"
+			# shellcheck disable=SC2086
+			./install-script -m "${mountpoint:?}/$test" -t "$1" ${log_mount_point}
 		else
-			./install-script -m ${mountpoint} -t $1 ${log_mount_point}
+			# shellcheck disable=SC2086
+			./install-script -d "$disklist" -t "$1" ${log_mount_point}
 		fi
-		if [[ $2 != "none" ]]; then
-			systemctl restart ${2} 
+		[[ -n "${2:-}" ]] && systemctl restart "$2"
+	fi
+	echo "$1" installed and started.  Doing required builds
+}
+
+#
+# Clean up the temporary database
+#
+clean_it() {
+	local test=${1:?Missing test name to uninstall}
+	if [[ -n "${mountpoint:-}" ]] ; then
+		if [[ -n "${dbhosts[*]:-}" ]] ; then
+			#
+			# Remote systems
+			#
+			local hostnm
+			for hostnm in "${dbhosts[@]}}"; do
+				ssh -n "root@${hostnm}" "rm -rf '${mountpoint:?}/${test}'"
+			done
+		else
+			#
+			# Local system
+			#
+			rm -rf "${mountpoint:?}/$test"
 		fi
 	fi
-	echo $1 installed and started.  Doing required builds
+	echo "$1 cleaned up"
 }
 
 #
@@ -121,45 +140,35 @@ install_it()
 #
 run_hammerdb_users()
 {
-	uc=$1
-
-	export uc
+	local -i ctr=1
+	local uc=${1:?Missing user count to run}
+	local test=${2:?Missing test name to run}
+	local tname=$test
+	[[ $test = postgres ]] && tname=pg
 	#
 	# Due to the cloud systems, not logging in as root, we need two separate areas.  One
 	# that operates on remote systems, the other that operate on the system we are currently
 	# running on.
-	if [[ $dbhosts != "none" ]]; then
-		export ctr=1
-		export uc
-		for hostnm in ${dbhosts}
-		do
-			export $hostnm
-			if [[ $test_to_run == "mariadb" ]]; then
-				ssh root@${hostnm} "cd /usr/local/HammerDB; cp runtest_mariadb.tcl runtest${ctr}_mariadb.tcl"
-				ssh root@${hostnm} "cd /usr/local/HammerDB; sed -i 's/^diset connection mysql_host.*/diset connection mysql_host ${hostnm}/' runtest${ctr}_mariadb.tcl"
-				ssh root@${hostnm} "cd /usr/local/HammerDB; sed -i 's/^vuset.*/vuset vu ${uc}/' runtest${ctr}_mariadb.tcl"
-				ssh root@${hostnm} "cd /usr/local/HammerDB; nohup ./hammerdbcli auto runtest${ctr}_mariadb.tcl > test_CNV_mariadb_${rundt}_${numhosts}pod_pod${ctr}_${uc}.out 2>&1 " &
-				export outputfname=test_CNV_mariadb_${rundt}_${numhosts}pod_pod${ctr}_${uc}.out
-			fi
-			if [[ $test_to_run == "mssql" ]]; then
-				ssh root@${hostnm} "cd /usr/local/HammerDB; cp runtest_mssql.tcl runtest${ctr}_mssql.tcl"
-				ssh root@${hostnm} "cd /usr/local/HammerDB; sed -i 's/^diset tpcc mssqls_count_ware.*/diset tpcc mssqls_count_ware ${whc}/' runtest${ctr}_mssql.tcl"
-				ssh root@${hostnm} "cd /usr/local/HammerDB; sed -i 's/^vuset.*/vuset vu ${uc}/' runtest${ctr}_mssql.tcl"
-				ssh root@${hostnm} "cd /usr/local/HammerDB; nohup ./hammerdbcli auto runtest${ctr}_mssql.tcl > test_RHV_mssql_${rundt}_${numhosts}VM_VM${ctr}_${uc}.out 2>&1 " &
-				export outputfname=test_RHV_mssql_${rundt}_${numhosts}VM_VM${ctr}_${uc}.out
-			fi
-			if [[ $test_to_run == "postgres" ]]; then
-				export hostnm
-				ssh root@${hostnm} "cd /usr/local/HammerDB; cp runtest_pg.tcl runtest${ctr}_pg.tcl"
-				ssh root@${hostnm} "cd /usr/local/HammerDB; sed -i 's/^diset connection pg_host.*/diset connection pg_host ${hostnm}/' runtest${ctr}_pg.tcl"
-				ssh root@${hostnm} "cd /usr/local/HammerDB; sed -i 's/^vuset.*/vuset vu ${uc}/' runtest${ctr}_pg.tcl"
-				ssh root@${hostnm} "cd /usr/local/HammerDB; nohup ./hammerdbcli auto runtest${ctr}_pg.tcl > test_ESX_pg_${rundt}_${numhosts}pod_pod${ctr}_${uc}.out 2>&1 " &
-				export outputfname=test_ESX_pg_${rundt}_${numhosts}pod_pod${ctr}_${uc}.out
-				ctr=$((ctr + 1))
-				export ctr
-			fi
-			ctr1=$((ctr1 + 1))
-			export ctr=1
+	if [[ -n "${dbhosts[*]:-}" ]]; then
+		local hostnm
+		for hostnm in "${dbhosts[@]}" ;do
+			runtestfile=runtest${ctr}_${test}.tcl
+			outfile=test_${test}_${rundate}_n${numhosts}_i${ctr}_${uc}.out
+			ssh -n "root@$hostnm" "cd /usr/local/HammerDB && cp 'runtest_${tname}.tcl' '$runtestfile'"
+			case "$test" in
+				mariadb)
+					ssh -n "root@$hostnm" "cd /usr/local/HammerDB; sed -i 's/^diset connection mysql_host.*/diset connection mysql_host ${hostnm}/' '$runtestfile'"
+					;;
+				mssql)
+					ssh -n "root@$hostnm" "cd /usr/local/HammerDB; sed -i 's/^diset tpcc mssqls_count_ware.*/diset tpcc mssqls_count_ware ${warehousecount}/' '$runtestfile"
+					;;
+				postgres)
+					ssh -n "root@$hostnm" "cd /usr/local/HammerDB; sed -i 's/^diset connection pg_host.*/diset connection pg_host ${hostnm}/' '$runtestfile'"
+					;;
+			esac
+			ssh -n "root@$hostnm" "cd /usr/local/HammerDB; sed -i 's/^vuset.*/vuset vu ${uc}/' '$runtestfile'"
+			ssh -n "root@$hostnm" "cd /usr/local/HammerDB; nohup ./hammerdbcli auto '$runtestfile'" > "$outfile" 2>&1 &
+			ctr=$((ctr + 1))
 		done
 		#
 		# Wait for everyone to complete.
@@ -170,59 +179,38 @@ run_hammerdb_users()
 		#
 		sleep 120
 	else
-		export ctr=1
-		if [[ $test_to_run == "mariadb" ]]; then
-			cp runtest_mariadb.tcl runtest${ctr}_mariadb.tcl
-			out_file="test_mariadb_${rundt}_${numhosts}pod_pod1_${uc}.out"
-			sed -i "s/^diset connection mysql_host.*/diset connection mysql_host ${hostnm}/" runtest${ctr}_mariadb.tcl
-			sed -i "s/^vuset.*/vuset vu ${uc}/" runtest${ctr}_mariadb.tcl
-			export outputfname=$out_file
-			./hammerdbcli auto runtest${ctr}_mariadb.tcl > $out_file 2>&1 
-			grep TPM $out_file | awk '{print $7}'
-			echo "# connection:TPM" > results_hammerdb_maria.csv
-			for i in `ls test_mariadb*out`; do
-				connections=`grep "Active Virtual Users configured" $i | cut -d: -f 2 | cut -d' ' -f 1`
-				tpms=`grep TPM $i  | cut -d' ' -f 7`
-				echo ${connections}:${tpms} >> results_hammerdb_maria.csv
-			done
+		runtestfile=runtest${ctr}_${test}.tcl
+		outfile=test_${test}_${rundate}_n${ctr}_i${ctr}_${uc}.out
+		resultfile=results_hammerdb_${test}.csv
+		echo "Outfile is $outfile"
+		echo "runtestfile is $runtestfile"
+		cp "runtest_${tname}.tcl" "$runtestfile"
+
+		case "$test" in
+			mariadb)
+				sed -i "s/^diset connection mysql_host.*/diset connection mysql_host localhost/" "$runtestfile"
+				;;
+			mssql)
+ 				sed -i "s/^diset tpcc mssqls_count_ware.*/diset tpcc mssqls_count_ware ${warehousecount}/" "$runtestfile"
+				;;
+			postgres)
+				sed -i "s/^diset connection pg_host.*/diset connection pg_host localhost/" "$runtestfile"
+				;;
+		esac
+		sed -i "s/^vuset.*/vuset vu ${uc}/" "$runtestfile"
+		./hammerdbcli auto "$runtestfile" > "$outfile" 2>&1
+		grep TPM "$outfile" | awk '{print $7}'
+		if [[ ! -f "$resultfile" ]] ; then
+			echo "# connection:TPM" > "$resultfile"
 		fi
-		if [[ $test_to_run == "mssql" ]]; then
-			export whc
-			export uc
-			export hostnm
-			out_file="test_mssql_${rundt}_${numhosts}VM_VM${ctr}_${uc}.out"
-			cp runtest_mssql.tcl runtest${ctr}_mssql.tcl
- 			sed -i "s/^diset tpcc mssqls_count_ware.*/diset tpcc mssqls_count_ware ${whc}/" runtest${ctr}_mssql.tcl
-			sed -i "s/^vuset.*/vuset vu ${uc}/" runtest${ctr}_mssql.tcl
-			export outputfname=$out_file
-			./hammerdbcli auto runtest${ctr}_mssql.tcl > $out_file 2>&1
-			echo "${uc} User run done"
- 			grep TPM $out_file | awk '{print $7}'
-			echo "# connections:TPM" > results_hammerdb_mssql.csv
-			for i in `ls test_mssql_*out`; do
-				connections=`grep "Active Virtual Users configured" $i | cut -d: -f 2 | cut -d' ' -f 1`
-				tpms=`grep TPM $i  | cut -d' ' -f 7`
-				echo ${connections}:${tpms} >> results_hammerdb_mssql.csv
-			done
-		fi
-		if [[ $test_to_run == "postgres" ]]; then
-	       		cp runtest_pg.tcl runtest${ctr}_pg.tcl
-	       		sed -i "s/^diset connection pg_host.*/diset connection pg_host ${hostnm}/" runtest${ctr}_pg.tcl
-	       		sed -i "s/^vuset.*/vuset vu ${uc}/" runtest${ctr}_pg.tcl
-			out_file="test_pg_${rundt}_${numhosts}pod_pod1_${uc}.out"
-			export outputfname=$out_file
-	       		./hammerdbcli auto runtest${ctr}_pg.tcl > $out_file 2>&1
-			echo "# connections:TPM" > results_hammerdb_pg.csv
-			for i in `ls test_pg_*out`; do
-				connections=`grep "Active Virtual Users configured" $i | cut -d: -f 2 | cut -d' ' -f 1`
-				tpms=`grep TPM $i  | cut -d' ' -f 7`
-				echo ${connections}:${tpms} >> results_hammerdb_pg.csv
-			done
-		fi
-		ctr=$((ctr + 1))
-		export ctr
+		shopt -s nullglob
+		for file in "test_${test}_${rundate}_"*.out ; do
+			connections=$(grep "Active Virtual Users configured" "$file" | cut -d: -f 2 | cut -d' ' -f 1)
+			tpms=$(grep TPM "$file" | cut -d' ' -f 7)
+			echo "${connections}:${tpms}" >> "$resultfile"
+		done
 	fi
-	echo "${uc} User run done"
+	echo "${uc} User run for $test done"
 }
 
 #
@@ -230,14 +218,13 @@ run_hammerdb_users()
 #
 install_install_script()
 {
-	if [[ $dbhosts != "none" ]]; then
+	if [[ -n "${dbhosts[*]:-}" ]] ; then
 		#
 		# copy scripts to the VMS
 		#
-		for hostnm in ${dbhosts}
-		do
-			export hostnm
-			scp install-script root@${hostnm}:/root 
+		local hostnm
+		for hostnm in "${dbhosts[@]}" ; do
+			scp install-script "root@${hostnm}:/root"
 		done
 	else
 		#
@@ -255,15 +242,17 @@ shut_down()
 	#
 	# Shut down the service
 	#
-	
+
+	local test=${1:?Missing test name to shut down}	
 	echo "All runs done. Stopping $1"
 
-	if [[ $dbhosts != "none" ]]; then
-		for hostnm in ${dbhosts}; do
-			ssh root@${hostnm} "systemctl stop $1"
+	if [[ -n "${dbhosts[*]:-}" ]] ; then
+		local hostmm
+		for hostnm in "${dbhosts[@]}" ; do
+			ssh -n "root@$hostnm" "systemctl stop '$test'"
 		done
 	else
-		systemctl stop $1
+		systemctl stop "$test"
 	fi
 }
 
@@ -272,25 +261,23 @@ shut_down()
 # 
 run_hammerdb()
 {
-	for uc in ${Usercount}
-	do
-		run_hammerdb_users $uc
+	local uc
+	for uc in $usercount ; do
+		 run_hammerdb_users "$uc" "$@"
 	done
 }
 
-mariadb_install()
+mariadb_build()
 {
-	ctr=1
-	export ctr
-	if [[ $dbhosts != "none" ]]; then
-		for hostnm in ${dbhosts}
-		do
-			export hostnm
-			ssh root@${hostnm} "mysql -p100yard- -e 'drop database tpcc;'"
-			ssh root@${hostnm} "cd /usr/local/HammerDB; cp build_mariadb.tcl build${ctr}_mariadb.tcl"
-			ssh root@${hostnm} "cd /usr/local/HammerDB; sed -i 's/^diset connection mysql_host.*/diset connection mysql_host ${hostnm}/' build${ctr}_mariadb.tcl"
-			ssh root@${hostnm} "cd /usr/local/HammerDB; sed -i 's/^diset tpcc mysql_count_ware.*/diset tpcc mysql_count_ware ${whc}/' build${ctr}_mariadb.tcl"
-			ssh root@${hostnm} "cd /usr/local/HammerDB; nohup ./hammerdbcli auto build${ctr}_mariadb.tcl > build_mariadb_pod${ctr}.out 2>&1 " &
+	local -i ctr=1
+	if [[ -n "${dbhosts[*]:-}" ]] ; then
+		local hostnm
+		for hostnm in "${dbhosts[@]}" ; do
+			ssh -n "root@$hostnm" "mysql -p100yard- -e 'drop database tpcc;'"
+			ssh -n "root@$hostnm" "cd /usr/local/HammerDB && cp build_mariadb.tcl 'build${ctr}_mariadb.tcl'"
+			ssh -n "root@$hostnm" "cd /usr/local/HammerDB && sed -i 's/^diset connection mysql_host.*/diset connection mysql_host ${hostnm}/' 'build${ctr}_mariadb.tcl'"
+			ssh -n "root@$hostnm" "cd /usr/local/HammerDB && sed -i 's/^diset tpcc mysql_count_ware.*/diset tpcc mysql_count_ware ${warehousecount}/' 'build${ctr}_mariadb.tcl'"
+			ssh -n "root@$hostnm" "cd /usr/local/HammerDB && nohup ./hammerdbcli auto build${ctr}_mariadb.tcl > build_mariadb_pod${ctr}.out 2>&1 " &
    			numhosts=${ctr}
 			ctr=$((ctr + 1))
 		done
@@ -303,80 +290,73 @@ mariadb_install()
 		# Set it up, and build the dbase
 		#
 		mysql -p100yard- -e 'drop database tpcc;'
-		cd /usr/local/HammerDB
+		cd /usr/local/HammerDB || exit
        		cp build_mariadb.tcl build${ctr}_mariadb.tcl
-		sed -i "s/^diset connection mysql_host.*/diset connection mysql_host ${hostnm}/" build${ctr}_mariadb.tcl
-		sed -i "s/^diset tpcc mysql_count_ware.*/diset tpcc mysql_count_ware ${whc}/" build${ctr}_mariadb.tcl
+		sed -i "s/^diset connection mysql_host.*/diset connection mysql_host localhost/" build${ctr}_mariadb.tcl
+		sed -i "s/^diset tpcc mysql_count_ware.*/diset tpcc mysql_count_ware ${warehousecount}/" build${ctr}_mariadb.tcl
 		./hammerdbcli auto build${ctr}_mariadb.tcl > build_mariadb_pod${ctr}.out 2>&1
 	fi
 }
 
 mariadb_test()
 {
-	install_it mariadb none
-	mariadb_install
-
+	install_it mariadb
+	mariadb_build
 	#
 	# Run the actual test.
 	#
-	run_hammerdb
+	run_hammerdb mariadb
 	shut_down mariadb.service
+	clean_it mariadb
 }
 
 mssql_build()
 {
-	if [[ $dbhosts != "none" ]]; then
-		ctr=1
-		export $ctr1
-		for hostnm in ${dbhosts}
-		do
-			ssh root@${hostnm} "cd /usr/local/HammerDB; cp build_mssql.tcl build${ctr}_mssql.tcl"
-			ssh root@${hostnm} "cd /usr/local/HammerDB; sed -i 's/^diset tpcc mssqls_count_ware.*/diset tpcc mssqls_count_ware ${whc}/' build${ctr}_mssql.tcl"
-			ssh root@${hostnm} "cd /usr/local/HammerDB; nohup ./hammerdbcli auto build${ctr}_mssql.tcl > build_mssql${ctr}.out 2>&1 " &
+	local -i ctr=1
+	if [[ -n "${dbhosts[*]:-}" ]] ; then
+		local hostnm
+		for hostnm in "${dbhosts[@]}" ; do
+			ssh -n "root@$hostnm" "cd /usr/local/HammerDB; cp build_mssql.tcl build${ctr}_mssql.tcl"
+			ssh -n "root@$hostnm" "cd /usr/local/HammerDB; sed -i 's/^diset tpcc mssqls_count_ware.*/diset tpcc mssqls_count_ware ${warehousecount}/' build${ctr}_mssql.tcl"
+			ssh -n "root@$hostnm" "cd /usr/local/HammerDB; nohup ./hammerdbcli auto build${ctr}_mssql.tcl > build_mssql${ctr}.out 2>&1 " &
 			numhosts=${ctr}
 			ctr=$((ctr + 1))
 		done
 		wait
 	else
-		cd /usr/local/HammerDB
-		cp build_mssql.tcl build${ctr}_mssql.tcl
-		sed -i "s/^diset tpcc mssqls_count_ware.*/diset tpcc mssqls_count_ware ${whc}/" build${ctr}_mssql.tcl
-	 	./hammerdbcli auto build${ctr}_mssql.tcl > build_mssql${ctr}.out 2>&1
+		cd /usr/local/HammerDB || exit
+		cp build_mssql.tcl "build${ctr}_mssql.tcl"
+		sed -i "s/^diset tpcc mssqls_count_ware.*/diset tpcc mssqls_count_ware ${warehousecount}/" build${ctr}_mssql.tcl
+		./hammerdbcli auto build${ctr}_mssql.tcl > build_mssql${ctr}.out 2>&1
 	fi
 }
 
 mssql_test()
 {
-	install_it mssql "msql-server"
-
-	export whc
+	install_it mssql "mssql-server"
 	#
 	# Pause to give mssql-server a chance.
 	#
 	sleep 60
 	mssql_build
 
-
-	rundt=`date +%Y.%m.%d`
-	export rundt
-
-	run_hammerdb
+	run_hammerdb mssql
 	shut_down "mssql-server.service"
+	clean_it mssql
 }
 
 postgres_build()
 {
-	ctr=1
-	export $ctr1
-	if [[ $dbhosts != "none" ]]; then
-		for hostnm in ${dbhosts}
-		do
-			ssh root@${hostnm} "echo 'DROP DATABASE tpcc;' > input"
-			ssh root@${hostnm} "echo 'DROP ROLE tpcc;' >> input"
-			ssh root@${hostnm} "/usr/bin/psql -U postgres -d postgres -h ${hostnm} -f input"
-			ssh root@${hostnm} "cd /usr/local/HammerDB; cp build_pg.tcl build${ctr}_pg.tcl"
-			ssh root@${hostnm} "cd /usr/local/HammerDB; sed -i 's/^diset connection pg_host.*/diset connection pg_host ${hostnm}/' build${ctr}_pg.tcl"
-			ssh root@${hostnm} "cd /usr/local/HammerDB; nohup ./hammerdbcli auto build${ctr}_pg.tcl > build_pg${ctr}.out 2>&1 " &
+	local -i ctr=1
+	if [[ -n "${dbhosts[*]:-}" ]] ; then
+		local hostnm
+		for hostnm in "${dbhosts[@]}" ; do
+			ssh -n "root@$hostnm" "echo 'DROP DATABASE tpcc;' > input"
+			ssh -n "root@$hostnm" "echo 'DROP ROLE tpcc;' >> input"
+			ssh -n "root@$hostnm" "/usr/bin/psql -U postgres -d postgres -h ${hostnm} -f input"
+			ssh -n "root@$hostnm" "cd /usr/local/HammerDB; cp build_pg.tcl build${ctr}_pg.tcl"
+			ssh -n "root@$hostnm" "cd /usr/local/HammerDB; sed -i 's/^diset connection pg_host.*/diset connection pg_host ${hostnm}/' build${ctr}_pg.tcl"
+			ssh -n "root@$hostnm" "cd /usr/local/HammerDB; nohup ./hammerdbcli auto build${ctr}_pg.tcl > build_pg${ctr}.out 2>&1 " &
    			numhosts=${ctr}
 			ctr=$((ctr + 1))
 		done
@@ -385,9 +365,9 @@ postgres_build()
 		echo 'DROP DATABASE tpcc;' > input
 		echo 'DROP ROLE tpcc;' >> input
 		/usr/bin/psql -U postgres -d postgres -h "localhost" -f input
-		cd /usr/local/HammerDB
+		cd /usr/local/HammerDB || exit 1
 		cp build_pg.tcl build${ctr}_pg.tcl
-		sed -i "s/^diset connection pg_host.*/diset connection pg_host ${hostnm}/" build${ctr}_pg.tcl
+		sed -i "s/^diset connection pg_host.*/diset connection pg_host localhost/" build${ctr}_pg.tcl
        		./hammerdbcli auto build${ctr}_pg.tcl > build_pg${ctr}.out 2>&1
 		ctr=$((ctr + 1))
 	fi
@@ -404,71 +384,38 @@ postgres_test()
 	sleep 60
 	postgres_build
 
-	ctr=1
-  	numhosts=${ctr}
-	rundt=`date +%Y.%m.%d`
-	export rundt
-
-	export Usercount
-
-	run_hammerdb
+	run_hammerdb postgres
 
 	echo "All runs done. Stopping Postgres database instances"
 
 	shut_down postgresql
+	clean_it postgres
 }
 
 #
 # Were we passed an argument?
 #
-if [ $# -eq 0 ]; then
-	usage;
-fi
 
-while [ $# -gt 0 ]
-do
-	case $1 in
-		-h)
-			usage;
-		;;
-		-H)
-			dbhosts=$2
-			shift 2
-		;;
-		-d)
-			disklist=$2
-			shift 2
-		;;
-		-M)
-			log_mount_point="-M $2"
-			shift 2
-		;;
-		-m)
-			mountpoint=$2
-			shift 2
-		;;
-		-w)
-			whc=$2
-			shift 2
-		;;
-		-u)
-			Usercount=$2
-			shift 2
-		;;
-		-t)
-			test_to_run=$2
-			shift 2
-		;;
-		*)
-			 usage;
-		;;
+while getopts 'hH:d:M:m:w:u:t:' opt "$@" ; do
+	# shellcheck disable=SC2206
+	case "$opt" in
+		h) usage ;;
+		H) dbhosts+=(${OPTARG//,/ }) ;;
+		d) disklist=$OPTARG ;;
+		M) log_mount_point="-M $OPTARG" ;;
+		m) mountpoint=$OPTARG ;;
+		w) warehousecount=$OPTARG ;;
+		u) usercount=$OPTARG ;;
+		t) tests_to_run+=(${OPTARG//,/ }) ;;
+		*) usage ;;
 	esac
 done
+shift $((OPTIND=1))
 
 #
 # If no test to run designated, bail.
 #
-if [ $test_to_run == "none" ]; then
+if [[ -z "${tests_to_run[*]:-}" ]] ; then
 	echo You need to designate a test to run.
 	usage
 fi
@@ -478,24 +425,15 @@ mount_check
 #
 # Determine what we are to run and run it.
 #
-if [[ $test_to_run == "mariadb" ]]; then
-	if [[ $whc == "" ]]; then
-		whc=1000
-	fi
-       	mariadb_test
-fi
+for test in "${tests_to_run[@]}" ; do
+	case "$test" in
+		mariadb*) (warehousecount=${warehousecount:-1000} mariadb_test) ;;
+		mssql) (warehousecount=${warehousecount:-500} mssql_test) ;;
+		postgres*) (warehousecount=${warehousecount:-500} postgres_test) ;;
+		*) echo "Unknown test $test"
+	esac
+done
 
-if [[ $test_to_run == "mssql" ]]; then
-	if [[ $whc == "" ]]; then
-		whc=500
-	fi
-       	mssql_test
-fi
-
-if [[ $test_to_run == "postgres" ]]; then
-	if [[ $whc == "" ]]; then
-		whc=500
-	fi
-       	postgres_test
-fi
-
+# Local Variables:
+# sh-indentation: 8
+# End:
