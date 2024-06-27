@@ -21,28 +21,30 @@
 # Script to set the system up for running hammerdb.
 #
 disks=
-mountpoint=
+mountpoint=/var/opt/hammerdb
 db_type=
 log_mount_point=
+install_packages=1
 
 install_mssql()
 {
-	cp /tmp/hammerdb-tpcc/mssql/mssql-repo-2019.repo /etc/yum.repos.d
-	yum -y install mssql-server
-	curl https://packages.microsoft.com/config/rhel/7/prod.repo > /etc/yum.repos.d/msprod.repo
-	yum -y remove unixODBC-utf16 unixODBC-utf16-devel
-	ACCEPT_EULA=Y yum install -y mssql-tools unixODBC-devel
+	if ((install_packages)) ; then
+		curl -sS -o /etc/yum.repos.d/mssql-server.repo https://packages.microsoft.com/config/rhel/9/mssql-server-2022.repo
+		curl -sS -o /etc/yum.repos.d/msprod.repo https://packages.microsoft.com/config/rhel/9/prod.repo
+		ACCEPT_EULA=y dnf --setopt=install_weak_deps=0 install -y \
+			      mssql-server \
+			      mssql-tools \
+			      unixODBC-devel
+	fi
+	systemctl stop mssql-server
 	# shellcheck disable=SC2016
 	echo 'export PATH="$PATH:/opt/mssql-tools/bin"' >> ~/.bash_profile
 	cd /usr/local/HammerDB || fatal "Cannot cd /usr/local/hammerdb"
 	cp -R  /tmp/hammerdb-tpcc/mssql/* .
 
-
 	rm -rf "${mountpoint}"/mssql_data/
 	mkdir -p "${mountpoint}"/mssql_data
 	chown -R mssql:mssql "${mountpoint}"/mssql_data 
-	
-	systemctl stop mssql-server
 
 	cd /opt/mssql/bin/ || fatal "Cannot cd /opt/mssql/bin"
 	mkdir /var/opt/mssql/secrets/
@@ -52,7 +54,7 @@ install_mssql()
 	export MSSQL_PID="Evaluation"
 
 	rm -rf /var/opt/mssql
-	chmod 777 /var/opt
+	mkdir /var/opt/mssql
 
 	./mssql-conf -n setup accept-eula <<'EOF'
 1
@@ -80,15 +82,17 @@ EOF
 
 install_mariadb()
 {
-	#
-	# Install Mariadb Server and tools
-	#
-#	dnf -y install mariadb.x86_64 mariadb-common.x86_64 mariadb-devel.x86_64 \
-#	mariadb-errmsg.x86_64 mariadb-server.x86_64 mariadb-server-utils.x86_64 mysql-libs.x86_64
-	dnf -y install mariadb.x86_64 mariadb-common.x86_64 \
-	mariadb-errmsg.x86_64 mariadb-server.x86_64 mariadb-server-utils.x86_64
-
-
+	if ((install_packages)) ; then
+		ACCEPT_EULA=y dnf --setopt=install_weak_deps=0 install -y \
+			      mariadb \
+			      mariadb-common \
+			      mariadb-devel \
+			      mariadb-errmsg \
+			      mariadb-server \
+			      mariadb-server-utils \
+			      mysql-libs
+	fi
+	systemctl stop mariadb.service
 	#
 	# Configure things in and mount the appropriate item.
 	#
@@ -118,24 +122,22 @@ install_mariadb()
 	#
 
 	sed -i "s+^datadir=.*+datadir=${mountpoint}\/mysql\/data+" my.cnf
-	if ((totmem_BP << 64000 )); then
+	if ((totmem_BP < 64000 )); then
    		sed -i "s/^innodb_buffer_pool_size=.*/innodb_buffer_pool_size=${totmem_BP}M/" my.cnf
 	else
    		sed -i "s/^innodb_buffer_pool_size=.*/innodb_buffer_pool_size=64000M/" my.cnf
 	fi
 	sed -i "/innodb_file_per_table/a innodb_log_group_home_dir = ${log_mount_point}\/mysql\/log" my.cnf
 
-	/usr/bin/cp my.cnf /etc/my.cnf
+	cp my.cnf /etc/my.cnf
 
 	systemctl restart mariadb.service
 
-	#echo "UPDATE mysql.user SET Password=PASSWORD('100yard-')  WHERE User='root';" > input
-	#echo "GRANT ALL ON *.* to root@'%' IDENTIFIED BY '100yard-';" >> input
-    	echo "SET PASSWORD FOR 'root'@localhost = PASSWORD('mysql');" > input
-	echo "flush privileges;" >> input
-	echo "exit" >> input
-
-	mysql -u root < input
+	mysql -u root <<'EOF'
+SET PASSWORD FOR 'root'@localhost = PASSWORD('mysql');
+flush privileges;
+exit
+EOF
 
 	sleep 30
 	systemctl restart mariadb.service
@@ -143,11 +145,15 @@ install_mariadb()
 
 install_postgres()
 {
-	#
-	# Installing Postgres Server and tools
-	#
-	dnf -y install postgresql.x86_64 postgresql-contrib.x86_64 postgresql-server.x86_64 glibc-langpack-en libpq
-
+	if ((install_packages)) ; then
+		ACCEPT_EULA=y dnf --setopt=install_weak_deps=0 install -y \
+			      postgresql \
+			      postgresql-contrib \
+			      postgresql-server \
+			      glibc-langpack-en \
+			      libpq
+	fi
+	systemctl stop postgresql.service
 	cd /usr/local/HammerDB || fatal "Cannot cd /usr/local/hammerdb"
 	cp -R /tmp/hammerdb-tpcc/postgres/* .
 
@@ -182,32 +188,32 @@ install_postgres()
 	   	sed -i "s/^shared_buffers =.*/shared_buffers = 64000MB/" postgresql.conf
 	fi
 
-	/usr/bin/cp -f pg_hba.conf /var/lib/pgsql/data
-	/usr/bin/cp -f postgresql.conf /var/lib/pgsql/data
+	cp -f pg_hba.conf /var/lib/pgsql/data
+	cp -f postgresql.conf /var/lib/pgsql/data
 	systemctl restart postgresql
-	echo "alter role postgres password 'postgres'" > input
-
-	psql -U postgres -d postgres < input
+	psql -U postgres -d postgres <<EOF
+alter role postgres password 'postgres'
+EOF
 	sleep 30
 	systemctl restart postgresql.service
 }
 
 usage()
 {
-        cat <<'EOF'
+	[[ -n "$*" ]] && echo "$*"
+        cat <<EOF
 Usage:
         ./install-script [-h] [-d disk name] [-m mount point] [-t dbtype]
 
         Usage:
         -h help
         -d <disk device name>
-        -m <mount point>
+        -m <mount point, default $mountpoint>
 	-t <mariadb, mssql, postgres>
 
-
        Examples:
-        ./install-script -d '/dev/sdb' 
-        ./install-script -d '/perf1' 
+        ./install-script -d /dev/sdb mariadb
+        ./install-script -m /var/opt/hammerdb mssql
 EOF
         exit
 }
@@ -218,75 +224,64 @@ fatal()
 	exit 1
 }
 
+install_hammerdb() {
+	cd /tmp || fatal "Cannot cd /tmp"
+	curl -ksS https://people.redhat.com/srao/Hammerdb-Kit/hammerdb-tpcc.tar |	tar xf -
+	cd /tmp/hammerdb-tpcc/Hammerdb || fatal "Cannot cd to hammerdb package directory!"
+	unset DISPLAY
+	./HammerDB-3.2-Linux-x86-64-Install <<'EOF'
+y
+/usr/local/HammerDB
+EOF
+}
+
 #
 # If we did not pass any arguments, flag it.
 #
-if [ $# -eq 0 ]; then
-    usage
-fi
+(($#)) || usage
 
-while getopts 'hd:M:m:t:' opt ; do
+while getopts 'hd:M:m:t:pP' opt "$@" ; do
 	case "$opt" in
 		d) disks="$OPTARG" ;;
 		M) log_mount_point="$OPTARG" ;;
 		m) mountpoint="$OPTARG" ;;
 		t) db_type="$OPTARG" ;;
+		p) install_packages=1 ;;
+		P) install_packages=0 ;;
 		h) usage ;;
 		*) usage ;;
 	esac
 done
+shift $((OPTIND-1))
+[[ -n "${1:-}" ]] && db_type="$1"
 
-if [[ -z "$db_type" ]]; then
-	echo "You need to designate the db type."
-	usage
-fi
+[[ -n "$db_type" ]] || usage "Database type must be specified"
 
 #
 # Turn selinux off.
 #
 setenforce 0
 
-#
-# Retrieve the hammerdb script
-#
-curl -k -o /tmp/hammerdb-tpcc.tar https://people.redhat.com/srao/Hammerdb-Kit/hammerdb-tpcc.tar
-
-#
-# Install the hammerdb
-#
-cd /tmp || fatal "Cannot cd /tmp"
-tar xf hammerdb-tpcc.tar
-cd /tmp/hammerdb-tpcc/Hammerdb || fatal "Cannot cd to hammerdb package directory!"
-unset DISPLAY
-./HammerDB-3.2-Linux-x86-64-Install <<'EOF'
-y
-/usr/local/HammerDB
-EOF
+install_hammerdb
 
 #
 # Shutdown all running instances
 #
-systemctl stop mssql-server
-systemctl stop postgresql
-systemctl stop mariadb
+systemctl stop mssql-server.service postgresql.service mariadb.service
 
 #
 # Create filestems and mount if required
 #
-if [[ -z "$mountpoint" ]]; then
+if [[ -n "$disks" ]]; then
 	if [[ -z "$disks" ]] ; then
 		echo "Disk must be specified if -m is not used"
 		usage
 	fi
 	echo "using disk option"
-	umount /perf1
+	umount "$mountpoint"
 	mkfs.xfs -f "${disks}"
-	mkdir -p /perf1
-	mount "${disks}" /perf1
-	mountpoint="/perf1"
-else
-	echo "using mountpoint option"
-	echo "${mountpoint}"
+	mkdir -p "$mountpoint"
+	mount "${disks}" "$mountpoint"
 fi
 
 log_mount_point=${log_mount_point:-$mountpoint}
