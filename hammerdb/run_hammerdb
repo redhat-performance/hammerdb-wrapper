@@ -296,11 +296,56 @@ postgres_test()
 	doit clean_it -s postgresql.service postgres || return 1
 }
 
+list_results_only()
+{
+	cd "${instdir}" || exit 1
+	shopt -s nullglob
+	local t_py
+	t_py=$(mktemp -p /var/tmp -t "run_hammerdbXXXXXX.py") || exit 1
+	cat > "$t_py" <<'EOF'
+#!/usr/bin/python3
+
+import json
+import sys
+import re
+
+a = { "hostname": sys.argv[1], "hammerdb_results": [] }
+
+rundate = sys.argv[2]
+
+for file in sys.argv[3:]:
+    m = re.match(rf'^test_([a-zA-Z0-9]+)_{rundate}_([0-9]+)\.out$', file)
+    if m is not None:
+        database = m[1]
+        users = m[2]
+        with open(file) as f:
+            for line in f.readlines():
+                if re.match(r'TEST', line) is not None:
+                    print(line)
+                m = re.match(r'Vuser ([0-9]+):TEST RESULT : System achieved ([0-9]+) .* TPM at ([0-9]+) NOPM$', line)
+                if m is not None:
+                    answer = {
+                        "database": database,
+                        "users": users,
+                        "vuser": int(m[1]),
+                        "tpm": int(m[2]),
+                        "nopm": int(m[3])
+                    }
+                    a["hammerdb_results"].append(answer)
+
+print(json.dumps(a))
+EOF
+	chmod +x "$t_py"
+	"$t_py" "$(hostname)" "$rundate" test_*_"${rundate}"_*.out
+	rm -f "$t_py"
+	exit
+}
+
 #
 # Were we passed an argument?
 #
 
-while getopts 'hd:M:m:w:u:t:r:i:Pp' opt "$@" ; do
+while getopts 'lhd:M:m:w:u:t:r:i:Pp' opt "$@" ; do
 	# shellcheck disable=SC2206
 	case "$opt" in
 		d) disklist=$OPTARG ;;
@@ -313,9 +358,11 @@ while getopts 'hd:M:m:w:u:t:r:i:Pp' opt "$@" ; do
 		P) install_packages='' ;;
 		p) install_packages=' ' ;;
 		i) instdir=$OPTARG ;;
+		l) list_results_only ;;
 		h|*) usage "Unexpected option '$opt'" ;;
 	esac
 done
+
 shift $((OPTIND-1))
 if [[ -n "$*" ]] ; then
 	do_install=0
