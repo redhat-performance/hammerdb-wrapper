@@ -129,7 +129,7 @@ install_it()
 		# shellcheck disable=SC2086
 		/var/tmp/hammerdb/install-script -i "$instdir" -d "$disklist" ${installp} -t "$test" ${log_mount_point}
 	fi
-	[[ -n "$service" ]] && systemctl restart "$service"
+	if [[ -n "$service" ]] ; then systemctl restart "$service"; fi
 }
 
 build_it() {
@@ -170,7 +170,7 @@ clean_it() {
 	local test=${1:?Missing test name to uninstall}
 
 	[[ -n "$service" ]] && systemctl stop "$service"
-	[[ -n "${mountpoint:-}" ]] && rm -rf "${mountpoint:?}/$test"
+	rm -rf "${mountpoint:?}/$test"
 	echo "$test cleaned up"
 	# Runtime is not interesting for cleanup
 	return 120
@@ -224,7 +224,7 @@ run_hammerdb_users()
 #
 run_hammerdb()
 {
-	((do_run)) || return
+	((do_run)) || return 120
 	local uc
 	for uc in "${usercount[@]}" ; do
 		 run_hammerdb_users "$uc" "$@" || return 1

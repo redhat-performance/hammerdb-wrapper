@@ -41,8 +41,8 @@ install_mssql()
 	systemctl stop mssql-server
 	# shellcheck disable=SC2016
 	echo 'export PATH="$PATH:/opt/mssql-tools/bin"' >> ~/.bash_profile
-	cd "$srcdir" || fatal "Cannot cd /usr/local/hammerdb"
-	cp -R  "${srcdir}"/hammerdb-tpcc/mssql/* .
+	cd "$instdir" || fatal "Cannot cd /usr/local/hammerdb"
+	cp -R "${srcdir}"/hammerdb-tpcc/mssql/* .
 
 	rm -rf "${mountpoint}"/mssql_data/
 	mkdir -p "${mountpoint}"/mssql_data
@@ -98,13 +98,13 @@ install_mariadb()
 	#
 	# Configure things in and mount the appropriate item.
 	#
-	cd "$srcdir" || fatal "Cannot cd /usr/local/hammerdb"
-	cp -R  "${srcdir}"/tmp/hammerdb-tpcc/mariadb/* .
+	cd "$instdir" || fatal "Cannot cd /usr/local/hammerdb"
+	cp -R "${srcdir}"/hammerdb-tpcc/mariadb/* .
 
 	#
 	# Clean up any residual stuff and set up the directories
 	#
-	rm -rf "${mountpoint}"/mysql/* "${log_mount_point}"/mysql/log
+	rm -rf "${mountpoint}"/mysql "${log_mount_point}"/mysql/log
 	mkdir -p "${mountpoint}"/mysql/data
 	chown -R mysql:mysql "${mountpoint}"/mysql
         mkdir -p "${log_mount_point}"/mysql/log
@@ -156,7 +156,7 @@ install_postgres()
 			      libpq
 	fi
 	systemctl stop postgresql.service
-	cd "$srcdir" || fatal "Cannot cd /usr/local/hammerdb"
+	cd "$instdir" || fatal "Cannot cd /usr/local/hammerdb"
 	cp -R "${srcdir}"/hammerdb-tpcc/postgres/* .
 
 	rm -rf /var/lib/pgsql/data
