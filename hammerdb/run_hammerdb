@@ -128,9 +128,9 @@ run_hammerdb_users()
 	# Due to the cloud systems, not logging in as root, we need two separate areas.  One
 	# that operates on remote systems, the other that operate on the system we are currently
 	# running on.
+	export uc
 	if [[ $dbhosts != "none" ]]; then
 		export ctr=1
-		export uc
 		for hostnm in ${dbhosts}
 		do
 			export $hostnm
@@ -172,6 +172,7 @@ run_hammerdb_users()
 	else
 		export ctr=1
 		if [[ $test_to_run == "mariadb" ]]; then
+			export uc
 			cp runtest_mariadb.tcl runtest${ctr}_mariadb.tcl
 			out_file="test_mariadb_${rundt}_${numhosts}pod_pod1_${uc}.out"
 			sed -i "s/^diset connection mysql_host.*/diset connection mysql_host ${hostnm}/" runtest${ctr}_mariadb.tcl
@@ -206,6 +207,7 @@ run_hammerdb_users()
 			done
 		fi
 		if [[ $test_to_run == "postgres" ]]; then
+			export uc
 	       		cp runtest_pg.tcl runtest${ctr}_pg.tcl
 	       		sed -i "s/^diset connection pg_host.*/diset connection pg_host ${hostnm}/" runtest${ctr}_pg.tcl
 	       		sed -i "s/^vuset.*/vuset vu ${uc}/" runtest${ctr}_pg.tcl
