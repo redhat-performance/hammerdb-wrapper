@@ -319,7 +319,7 @@ rm -f results_pbench.tar
 
 tmp_file=`mktemp /tmp/hammer_data.XXXXX`
 find -L $test  -type f  -exec grep -Iq . {} \; -print > $tmp_file
-echo "/usr/local/HammerDB/results_hammerdb_maria.csv" >> $tmp_file
+echo "/usr/local/HammerDB/results_hammerdb_${test}.csv" >> $tmp_file
 egrep  "out|csv|report" $tmp_file | egrep -v "Hammerdb" | grep -v tcl | tar cf /tmp/results_hammerdb_${test}_${to_tuned_setting}.tar --files-from=/dev/stdin
 ${curdir}/test_tools/save_results --curdir $curdir --home_root $to_home_root --tar_file /tmp/results_hammerdb_${test}_${to_tuned_setting}.tar --test_name $test_name_${test} --tuned_setting=$to_tuned_setting --version "None" --user $to_user
 rm $tmp_file
