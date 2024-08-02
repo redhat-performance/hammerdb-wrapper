@@ -293,6 +293,9 @@ if [[ $to_tuned_setting != "none" ]]; then
 	tuned_original=`tuned-adm active | cut -d' ' -f4`
 	tuned-adm profile $to_tuned_setting
 fi
+pushd /usr/local > /dev/null
+rm -rf $test
+popd > /dev/null
 cd $exec_dir
 echo ./run_hammerdb -m /perf1 -t ${test} ${users_to_run} ${warehouses} ${log_mount} > run_this
 chmod 755 run_this
@@ -316,7 +319,9 @@ rm -f results_pbench.tar
 
 tmp_file=`mktemp /tmp/hammer_data.XXXXX`
 find -L $test  -type f  -exec grep -Iq . {} \; -print > $tmp_file
-egrep  "out|csv|report" temp | egrep -v "Hammerdb" | grep -v tcl | tar cf /tmp/results_hammerdb_${test}_${to_tuned_setting}.tar --files-from=/dev/stdin
+echo "/usr/local/HammerDB/results_hammerdb_${test}.csv" >> $tmp_file
+egrep  "out|csv|report" $tmp_file | egrep -v "Hammerdb" | grep -v tcl | tar cf /tmp/results_hammerdb_${test}_${to_tuned_setting}.tar --files-from=/dev/stdin
+${curdir}/test_tools/save_results --curdir $curdir --home_root $to_home_root --tar_file /tmp/results_hammerdb_${test}_${to_tuned_setting}.tar --test_name $test_name_${test} --tuned_setting=$to_tuned_setting --version "None" --user $to_user
 rm $tmp_file
 
 if [[ $to_tuned_setting != "none" ]]; then
