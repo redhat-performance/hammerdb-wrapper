@@ -164,7 +164,7 @@ create_and_mount_fs()
 		echo LVM create failed.
 		exit 1
 	fi
-	mkdir /perf1
+	mkdir -p /perf1
 	$TOOLS_BIN/create_filesystem --fs_type $fs --mount_dir /perf1 --device /dev/hammerdb/hammerdb
 	if [ $? -ne 0 ]; then
 		echo filesystem create failed.
@@ -174,9 +174,7 @@ create_and_mount_fs()
 	if [[ $log_disks != "" ]]; then
 		log_disks=`echo $log_disks | sed "s/,/ /g"`
 		umount -q /perf2
-		if [[ ! -d /perf2 ]]; then
-			mkdir /perf2
-		fi
+		mkdir -p /perf2
 		$TOOLS_BIN/lvm_create --devices "${log_disks}" --lvm_vol log_hammerdb --lvm_grp log_hammerdb --wipefs
 		if [ $? -ne 0 ]; then
 			echo LVM create of log disk failed.
