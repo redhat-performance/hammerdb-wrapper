@@ -140,7 +140,6 @@ test="none"
 create_and_mount_fs()
 {
 
-	echo $disks
 	if [[ $disks == "grab_disks" ]]; then
 		results=`$TOOLS_BIN/grab_disks ${disks}`
 		if [ $? -ne 0 ]; then
@@ -157,7 +156,7 @@ create_and_mount_fs()
 
 	cd $to_home_root/$to_user
 	echo $disks > disks
-	umount /perf1
+	umount -q /perf1
 
 
 	$TOOLS_BIN/lvm_create --devices "${disks}" --lvm_vol hammerdb --lvm_grp hammerdb --wipefs
@@ -165,7 +164,7 @@ create_and_mount_fs()
 		echo LVM create failed.
 		exit 1
 	fi
-	mkdir /perf1
+	mkdir -p /perf1
 	$TOOLS_BIN/create_filesystem --fs_type $fs --mount_dir /perf1 --device /dev/hammerdb/hammerdb
 	if [ $? -ne 0 ]; then
 		echo filesystem create failed.
@@ -174,8 +173,8 @@ create_and_mount_fs()
 
 	if [[ $log_disks != "" ]]; then
 		log_disks=`echo $log_disks | sed "s/,/ /g"`
-		umount /perf2
-		mkdir /perf2
+		umount -q /perf2
+		mkdir -p /perf2
 		$TOOLS_BIN/lvm_create --devices "${log_disks}" --lvm_vol log_hammerdb --lvm_grp log_hammerdb --wipefs
 		if [ $? -ne 0 ]; then
 			echo LVM create of log disk failed.
@@ -224,7 +223,6 @@ fi
 
 eval set --$opts
 
-echo testing now
 while [[ $# -gt 0 ]]; do
         case "$1" in
                 --disks)
@@ -319,9 +317,9 @@ rm -f results_pbench.tar
 
 tmp_file=`mktemp /tmp/hammer_data.XXXXX`
 find -L $test  -type f  -exec grep -Iq . {} \; -print > $tmp_file
-echo "/usr/local/HammerDB/results_hammerdb_${test}.csv" >> $tmp_file
+#echo "/usr/local/${test}/results_hammerdb_*.csv" >> $tmp_file
 egrep  "out|csv|report" $tmp_file | egrep -v "Hammerdb" | grep -v tcl | tar cf /tmp/results_hammerdb_${test}_${to_tuned_setting}.tar --files-from=/dev/stdin
-${curdir}/test_tools/save_results --curdir $curdir --home_root $to_home_root --tar_file /tmp/results_hammerdb_${test}_${to_tuned_setting}.tar --test_name $test_name_${test} --tuned_setting=$to_tuned_setting --version "None" --user $to_user
+${curdir}/test_tools/save_results --curdir $curdir --home_root $to_home_root --tar_file /tmp/results_hammerdb_${test}_${to_tuned_setting}.tar --test_name hammerdb_$test_name_${test} --tuned_setting=$to_tuned_setting --version "None" --user $to_user
 rm $tmp_file
 
 if [[ $to_tuned_setting != "none" ]]; then
