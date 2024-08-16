@@ -1,0 +1,146 @@
+#!/bin/bash
+#
+# Copyright (C) 2024  Robert Krawitz rkrawitz@redhat.com
+#
+# This program is free software; you can redistribute it and/or
+# modify it under the terms of the GNU General Public License
+# as published by the Free Software Foundation; either version 2
+# of the License, or (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program; if not, write to the Free Software
+# Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+
+# This file is intended to be sourced, not executed directly.
+
+declare -g _does_support_systemctl=${_does_support_systemctl:--1}
+
+supports_systemctl() {
+	if ((_does_support_systemctl < 0)) ; then
+		if type -p systemctl >/dev/null && systemctl >/dev/null 2>&1 ; then
+			_does_support_systemctl=1
+		else
+			_does_support_systemctl=0
+		fi
+	fi
+	((_does_support_systemctl))
+}
+
+start_service() {
+	local service
+	for service in "$@" ; do
+		case "$service" in
+			postgres*)
+				su -s /bin/bash - postgres -c "pg_ctl -D ${mountpoint}/pgsql -l ${mountpoint}/pgsql/logfile start" &
+				;;
+			mssql*)
+				mkdir -p "${mountpoint}/mssql"
+				chmod 777 "${mountpoint}/mssql"
+				podman run --replace -e ACCEPT_EULA=Y -e MSSQL_SA_PASSWORD=100yard- -p1433:1433 --name mssql -v "${mountpoint}/mssql:/var/opt/mssql" -d mcr.microsoft.com/mssql/server:2022-latest
+				if [[ -n "${memorykb:-}" ]] ; then
+					sleep 5
+					podman exec mssql /opt/mssql/bin/mssql-conf set memory.memorylimitmb "$((memorykb / 1024))"
+					podman restart mssql
+					sleep 5
+				fi
+				;;
+			maria*)
+				# mkdir -p "${mountpoint}/mysql"
+				# chown mysql.mysql "${mountpoint}/mysql"
+				# mkdir -p /var/lib/mysql
+				# rm -f /var/lib/mysql/mysql.sock
+				# ln -s "${mountpoint}/mysql/mysql.sock" /var/lib/mysql/mysql.sock
+				# podman run --rm --replace -p 3306:3306 -d --user mysql:mysql --name mariadb -e MYSQL_ROOT_PASSWORD=100yard- -v "${mountpoint}/mysql:/var/lib/mysql" quay.io/fedora/mariadb-102
+				#mkdir -p "$mountpoint"/mysql
+				#podman run --replace -p 3306:3306 --userns=keep-id -d --name mariadb -e MYSQL_ROOT_PASSWORD=100yard- -v "${mountpoint}/mysql:/var/lib/mysql" quay.io/fedora/mariadb-102
+				/usr/libexec/mariadb-check-socket
+				/usr/libexec/mariadb-prepare-db-dir mysql mysql
+				mariadbd-safe&
+				;;
+			*)
+				echo "Unknown service $service"
+				;;
+		esac
+	done
+	sleep 5
+}
+
+stop_service() {
+	local service
+	for service in "$@" ; do
+		case "$service" in
+			postgres*)
+				su -s /bin/bash - postgres -c "pg_ctl -D ${mountpoint}/pgsql -l ${mountpoint}/pgsql/logfile stop"
+				;;
+			mssql*)
+				podman kill mssql
+				podman rm mssql
+				;;
+			maria*)
+				# podman kill mariadb
+				# sleep 5
+				# podman rm mariadb
+				# sleep 1
+				pkill mariadbd
+				;;
+			*)
+				echo "Unknown service $service"
+				;;
+		esac
+	done
+	sleep 5
+}
+
+restart_service() {
+	local service
+	for service in "$@" ; do
+		case "$service" in
+			postgres*)
+				su -s /bin/bash - postgres -c "pg_ctl -D ${mountpoint}/pgsql -l ${mountpoint}/pgsql/logfile stop"
+				su -s /bin/bash - postgres -c "pg_ctl -D ${mountpoint}/pgsql -l ${mountpoint}/pgsql/logfile start" &
+				;;
+			mssql*)
+				if podman ps |grep -q mssql ; then
+					podman restart mssql
+				else
+					stop_service "$service"
+					start_service "$service"
+				fi
+				;;
+			mariadb*)
+				stop_service "$service"
+				start_service "$service"
+				;;
+			*)
+				echo "Unknown service $service"
+				;;
+		esac
+	done
+}
+
+disable_service() {
+    :
+}
+
+enable_service() {
+    :
+}
+
+do_service() {
+	local op=$1
+	shift
+	if supports_systemctl ; then
+		systemctl "$op" "$@"
+	else
+		"${op}_service" "$@"
+	fi
+}
+
+# Local Variables:
+# sh-indentation: 8
+# End:

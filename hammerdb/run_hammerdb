@@ -40,6 +40,10 @@ do_cleanup=1
 install_packages=' '
 instdir=/var/local/HammerDB
 hostname=$(hostname)
+memorykb=
+
+. "${0%/*}"/do_service
+
 usage()
 {
 	[[ -n "$*" ]] && echo "$*"
@@ -124,12 +128,12 @@ install_it()
 	if [[ -n "${mountpoint:-}" ]]; then
 		rm -rf "${mountpoint:?}/$test"
 		# shellcheck disable=SC2086
-		/var/tmp/hammerdb/install-script -i "$instdir" -m "${mountpoint:?}/$test" ${installp} -t "$test" ${log_mount_point}
+		/var/tmp/hammerdb/install-script -i "$instdir" -m "${mountpoint:?}/$test" ${installp} ${memorykb:+-K "$memorykb"} -t "$test" ${log_mount_point}
 	else
 		# shellcheck disable=SC2086
-		/var/tmp/hammerdb/install-script -i "$instdir" -d "$disklist" ${installp} -t "$test" ${log_mount_point}
+		/var/tmp/hammerdb/install-script -i "$instdir" -d "$disklist" ${installp} ${memorykb:+-K "$memorykb"} -t "$test" ${log_mount_point}
 	fi
-	if [[ -n "$service" ]] ; then systemctl restart "$service"; fi
+	if [[ -n "$service" ]] ; then do_service restart "$service"; fi
 }
 
 build_it() {
@@ -169,7 +173,7 @@ clean_it() {
 	shift $((OPTIND-1))
 	local test=${1:?Missing test name to uninstall}
 
-	[[ -n "$service" ]] && systemctl stop "$service"
+	[[ -n "$service" ]] && do_service stop "$service"
 	rm -rf "${mountpoint:?}/$test"
 	echo "$test cleaned up"
 	# Runtime is not interesting for cleanup
@@ -190,6 +194,7 @@ run_hammerdb_users()
 	# that operates on remote systems, the other that operate on the system we are currently
 	# running on.
 	cd "${instdir}" || exit
+	pwd
 	runtestfile=runtest_${test}_1.tcl
 	outfile=test_${test}_${rundate}_${uc}.out
 	resultfile=results_hammerdb_${test}.csv
@@ -237,6 +242,7 @@ run_hammerdb()
 install_install_script()
 {
 	mkdir -p /var/tmp/hammerdb
+	cp -p do_service /var/tmp/hammerdb
 	cp -p install-script /var/tmp/hammerdb
 }
 
@@ -345,23 +351,27 @@ EOF
 # Were we passed an argument?
 #
 
-while getopts 'lhd:M:m:w:u:t:r:i:Pp' opt "$@" ; do
+while getopts 'lhd:M:m:w:u:t:r:i:PpK:sSM:' opt "$@" ; do
 	# shellcheck disable=SC2206
 	case "$opt" in
-		d) disklist=$OPTARG ;;
-		M) log_mount_point="-M $OPTARG" ;;
-		m) mountpoint=$OPTARG ;;
-		w) warehousecount=$OPTARG ;;
-		u) usercount=(${OPTARG//,/ } ) ;;
-		t) tests_to_run+=(${OPTARG//,/ }) ;;
-		r) rundate=$OPTARG ;;
+		K) memorykb="$OPTARG" ;;
+		M) log_mount_point=$OPTARG ;;
 		P) install_packages='' ;;
-		p) install_packages=' ' ;;
+		d) disklist=$OPTARG ;;
 		i) instdir=$OPTARG ;;
 		l) list_results_only ;;
+		m) mountpoint=$OPTARG ;;
+		p) install_packages=' ' ;;
+		r) rundate=$OPTARG ;;
+		s) _does_support_systemctl=1 ;;
+		S) _does_support_systemctl=0 ;;
+		t) tests_to_run+=(${OPTARG//,/ }) ;;
+		u) usercount=(${OPTARG//,/ } ) ;;
+		w) warehousecount=$OPTARG ;;
 		h|*) usage "Unexpected option '$opt'" ;;
 	esac
 done
+export _does_support_systemctl
 
 shift $((OPTIND-1))
 if [[ -n "$*" ]] ; then

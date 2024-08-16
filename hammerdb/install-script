@@ -20,6 +20,7 @@
 #
 # Script to set the system up for running hammerdb.
 #
+set -u
 disks=
 mountpoint=/var/opt/hammerdb
 db_type=
@@ -27,9 +28,13 @@ log_mount_point=
 install_packages=1
 instdir=/var/local/HammerDB
 srcdir=/opt/HammerDB
+memorykb=
+
+. "${0%/*}"/do_service
 
 install_mssql()
 {
+	/bin/pwd
 	if ((install_packages)) ; then
 		curl -sS -o /etc/yum.repos.d/mssql-server.repo https://packages.microsoft.com/config/rhel/9/mssql-server-2022.repo
 		curl -sS -o /etc/yum.repos.d/msprod.repo https://packages.microsoft.com/config/rhel/9/prod.repo
@@ -38,42 +43,44 @@ install_mssql()
 			      mssql-tools \
 			      unixODBC-devel
 	fi
-	systemctl stop mssql-server
+	do_service stop mssql-server
 	# shellcheck disable=SC2016
 	echo 'export PATH="$PATH:/opt/mssql-tools/bin"' >> ~/.bash_profile
 	cd "$instdir" || fatal "Cannot cd /usr/local/hammerdb"
 	cp -R "${srcdir}"/hammerdb-tpcc/mssql/* .
 
-	rm -rf "${mountpoint}"/mssql_data/
-	mkdir -p "${mountpoint}"/mssql_data
-	chown -R mssql:mssql "${mountpoint}"/mssql_data 
+	if supports_systemctl ; then
+		rm -rf "${mountpoint}"/mssql_data/
+		mkdir -p "${mountpoint}"/mssql_data
+		chown -R mssql:mssql "${mountpoint}"/mssql_data 
 
-	cd /opt/mssql/bin/ || fatal "Cannot cd /opt/mssql/bin"
-	mkdir /var/opt/mssql/secrets/
+		cd /opt/mssql/bin/ || fatal "Cannot cd /opt/mssql/bin"
+		mkdir /var/opt/mssql/secrets/
 
-	MSSQL_SA_PASSWORD="100yard-"
-	export MSSQL_SA_PASSWORD
-	export MSSQL_PID="Evaluation"
+		MSSQL_SA_PASSWORD="100yard-"
+		export MSSQL_SA_PASSWORD
+		export MSSQL_PID="Evaluation"
 
-	rm -rf /var/opt/mssql
-	mkdir /var/opt/mssql
+		rm -rf /var/opt/mssql
+		mkdir /var/opt/mssql
 
-	./mssql-conf -n setup accept-eula <<'EOF'
+		./mssql-conf -n setup accept-eula <<'EOF'
 1
 Yes
 100yard-
 100yard-
 EOF
 
-	sleep 30
-	systemctl stop mssql-server
+		sleep 30
+		do_service stop mssql-server
 
-	cd /var/opt/mssql || fatal "Cannot cd /var/opt/mssql"
-	mv data "${mountpoint}"/mssql_data
-	ln -sf "${mountpoint}"/mssql_data/data .
+		cd /var/opt/mssql || fatal "Cannot cd /var/opt/mssql"
+		mv data "${mountpoint}"/mssql_data
+		ln -sf "${mountpoint}"/mssql_data/data .
+	fi
 
-	systemctl disable mssql-server.service
-	systemctl restart mssql-server.service
+	do_service disable mssql-server.service
+	do_service restart mssql-server.service
 
 	cd "$instdir" || fatal "Cannot cd /usr/local/hammerdb"
 
@@ -94,7 +101,7 @@ install_mariadb()
 			      mariadb-server-utils \
 			      mysql-libs
 	fi
-	systemctl stop mariadb.service
+	do_service stop mariadb.service
 	#
 	# Configure things in and mount the appropriate item.
 	#
@@ -111,7 +118,11 @@ install_mariadb()
         chown -R mysql:mysql "${log_mount_point}"/mysql
 
 
-	totmem=$(grep MemTotal /proc/meminfo | awk '{print $2}')
+	if [[ -n "$memorykb" ]] ; then
+		totmem=$memorykb
+	else
+		totmem=$(grep MemTotal /proc/meminfo | awk '{print $2}')
+	fi
 	#
 	# Updating the value of buffer_pool_size based on available memory
 	# Setting bufferpool to half of physical memory if memory is less than 128G else set to 64G
@@ -133,7 +144,7 @@ install_mariadb()
 
 	cp my.cnf /etc/my.cnf
 
-	systemctl restart mariadb.service
+	do_service restart mariadb.service
 
 	mysql -u root <<'EOF'
 SET PASSWORD FOR 'root'@localhost = PASSWORD('mysql');
@@ -142,7 +153,7 @@ exit
 EOF
 
 	sleep 30
-	systemctl restart mariadb.service
+	do_service restart mariadb.service
 }
 
 install_postgres()
@@ -155,26 +166,50 @@ install_postgres()
 			      glibc-langpack-en \
 			      libpq
 	fi
-	systemctl stop postgresql.service
+	do_service stop postgresql.service
 	cd "$instdir" || fatal "Cannot cd /usr/local/hammerdb"
 	cp -R "${srcdir}"/hammerdb-tpcc/postgres/* .
 
+	#umount /var/lib/pgsql
+	rm -rf /var/lib/pgsql
 	rm -rf /var/lib/pgsql/data
-	rm -rf "${mountpoint}"/postgres_data
+	rm -rf "${mountpoint}"/pgsql
 
-	mkdir -p "${mountpoint}"/postgres_data
-	ln -sf "${mountpoint}"/postgres_data /var/lib/pgsql/data
-	chmod 700 "${mountpoint}"/postgres_data
-	chown -R postgres:postgres "${mountpoint}"/postgres_data
+	#mkdir -p /var/lib/pgsql
+	#chmod 700 /var/lib/pgsql
+	#chown -R postgres:postgres /var/lib/pgsql
+
+	#rm -rf /var/lib/pgsql
+	pgrep post
+	chmod 700 "$mountpoint"
+	chown postgres:postgres "$mountpoint"
+	mkdir -p "${mountpoint}"/pgsql
+	chmod 700 "$mountpoint"/pgsql
+	chown postgres:postgres "$mountpoint"/pgsql
+	#mount -o bind "$mountpoint"/pgsql /var/lib/pgsql
+	ln -s "${mountpoint}"/pgsql /var/lib/pgsql
+	
+	#mkdir -p "${mountpoint}"/postgres_data
+	#ln -sf "${mountpoint}"/pgsql/postgres_data /var/lib/pgsql/data
+	#chmod 700 "${mountpoint}"/postgres_data
+	#chown -R postgres:postgres "${mountpoint}"/postgres_data
         mkdir -p "${log_mount_point}"/postgres_log
-        chown -R mysql:mysql "${log_mount_point}"/postgres_log
+	mkdir -p /var/run/postgresql
+	chown postgres:postgres /var/run/postgresql
+        chown -R postgres:postgres "${log_mount_point}"/postgres_log
 
-	postgresql-setup initdb
+	ls -lR "$mountpoint"/pgsql/
+	su - postgres -c "initdb -D '$mountpoint'/pgsql/"
+	#postgresql-setup initdb
 	sleep 10
-	mv /var/lib/pgsql/data/pg_wal "${log_mount_point}"/postgres_log
-	ln -sf "${log_mount_point}"/postgres_log/pg_wal /var/lib/pgsql/data/pg_wal
+	#mv /var/lib/pgsql/data/pg_wal "${log_mount_point}"/postgres_log
+	#ln -sf "${log_mount_point}"/postgres_log/pg_wal /var/lib/pgsql/data/pg_wal
 
-	totmem=$(grep MemTotal /proc/meminfo | awk '{print $2}')
+	if [[ -n "$memorykb" ]] ; then
+		totmem=$memorykb
+	else
+		totmem=$(grep MemTotal /proc/meminfo | awk '{print $2}')
+	fi
 
 	#
 	# Change shared_buffer size based on available memory
@@ -192,12 +227,17 @@ install_postgres()
 
 	cp -f pg_hba.conf /var/lib/pgsql/data
 	cp -f postgresql.conf /var/lib/pgsql/data
-	systemctl restart postgresql
+	chown -R postgres.postgres "$mountpoint"/pgsql
+	chmod -R go-rw "$mountpoint"/pgsql
+	do_service restart postgresql
+	cat "$mountpoint"/pgsql/logfile
+	ls -lR "$mountpoint"/pgsql/log
+	cat "$mountpoint"/pgsql/log/*
 	psql -U postgres -d postgres <<EOF
 alter role postgres password 'postgres'
 EOF
 	sleep 30
-	systemctl restart postgresql.service
+	do_service restart postgresql.service
 }
 
 usage()
@@ -226,14 +266,18 @@ fatal()
 	exit 1
 }
 
-install_hammerdb() {
-	cd /var/tmp || fatal "Cannot cd /tmp"
-	curl -ksS https://people.redhat.com/srao/Hammerdb-Kit/hammerdb-tpcc.tar | tar xf -
+do_install_hammerdb() {
 	cd /var/tmp/hammerdb-tpcc/Hammerdb || fatal "Cannot cd to hammerdb package directory!"
 	./HammerDB-3.2-Linux-x86-64-Install --mode console <<EOF
 y
 $instdir
 EOF
+}	
+
+install_hammerdb() {
+	cd /var/tmp || fatal "Cannot cd /tmp"
+	curl -ksS https://people.redhat.com/srao/Hammerdb-Kit/hammerdb-tpcc.tar | tar xf -
+	(do_install_hammerdb)
 	rm -rf /var/tmp/hammerdb-tpcc
 }
 
@@ -242,16 +286,19 @@ EOF
 #
 (($#)) || usage
 
-while getopts 'hd:M:m:t:i:pP' opt "$@" ; do
+while getopts 'hd:M:m:t:i:pPK:sS' opt "$@" ; do
 	case "$opt" in
-		d) disks="$OPTARG" ;;
+		K) memorykb="$OPTARG" ;;
 		M) log_mount_point="$OPTARG" ;;
-		m) mountpoint="$OPTARG" ;;
-		t) db_type="$OPTARG" ;;
-		p) install_packages=1 ;;
 		P) install_packages=0 ;;
-		i) instdir="$OPTARG" ;;
+		S) _does_support_systemctl=0 ;;
+		d) disks="$OPTARG" ;;
 		h) usage ;;
+		i) instdir="$OPTARG" ;;
+		m) mountpoint="$OPTARG" ;;
+		p) install_packages=1 ;;
+		s) _does_support_systemctl=1 ;;
+		t) db_type="$OPTARG" ;;
 		*) usage ;;
 	esac
 done
@@ -270,7 +317,7 @@ install_hammerdb
 #
 # Shutdown all running instances
 #
-systemctl stop mssql-server.service postgresql.service mariadb.service
+do_service stop mssql-server.service postgresql.service mariadb.service
 
 #
 # Create filestems and mount if required
