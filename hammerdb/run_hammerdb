@@ -126,6 +126,7 @@ install_it()
 run_hammerdb_users()
 {
 	uc=$1
+	out_file=""
 
 	export uc
 	#
@@ -175,30 +176,23 @@ run_hammerdb_users()
 		sleep 120
 	else
 		export ctr=1
+		results_file=results_hammerdb_${test_to_run}.csv
+		if [[ ! -f $results_file ]]; then
+			$TOOLS_BIN/test_header_info --front_matter --results_file $results_file --host $to_configuration --sys_type $to_sys_type --tuned $to_tuned_setting --results_version $version --test_name hammerdb_${test_to_run}
+			echo "# connection:TPM" >> $results_file
+		fi
+		export uc
 		if [[ $test_to_run == "mariadb" ]]; then
-			if [ ! -f results_hammerdb_maria.csv ]; then
-				$TOOLS_BIN/test_header_info --front_matter --results_file results_hammerdb_maria.csv --host $to_configuration --sys_type $to_sys_type --tuned $to_tuned_setting --results_version $version --test_name hammerdb_mariadb
-				echo "# connection:TPM" >> results_hammerdb_maria.csv
-			fi
-			export uc
 			cp runtest_mariadb.tcl runtest${ctr}_mariadb.tcl
 			out_file="test_mariadb_${rundt}_${numhosts}pod_pod1_${uc}.out"
 			sed -i "s/^diset connection mysql_host.*/diset connection mysql_host ${hostnm}/" runtest${ctr}_mariadb.tcl
 			sed -i "s/^vuset.*/vuset vu ${uc}/" runtest${ctr}_mariadb.tcl
 			export outputfname=$out_file
 			./hammerdbcli auto runtest${ctr}_mariadb.tcl > $out_file 2>&1 
-			connections=`grep "Active Virtual Users configured" $out_file | cut -d: -f 2 | cut -d' ' -f 1`
-			tpms=`grep TPM $out_file  | cut -d' ' -f 7`
-			echo ${connections}:${tpms} >> results_hammerdb_maria.csv
 		fi
 		if [[ $test_to_run == "mssql" ]]; then
 			export whc
-			export uc
 			export hostnm
-			if [ ! -f results_hammerdb_mssql.csv ]; then
-				$TOOLS_BIN/test_header_info --front_matter --results_file results_hammerdb_mssql.csv --host $to_configuration --sys_type $to_sys_type --tuned $to_tuned_setting --results_version $version --test_name hammerdb_mssql
-				echo "# connections:TPM" >> results_hammerdb_mssql.csv
-			fi
 			export uc
 			out_file="test_mssql_${rundt}_${numhosts}VM_VM${ctr}_${uc}.out"
 			cp runtest_mssql.tcl runtest${ctr}_mssql.tcl
@@ -207,27 +201,19 @@ run_hammerdb_users()
 			export outputfname=$out_file
 			./hammerdbcli auto runtest${ctr}_mssql.tcl > $out_file 2>&1
 			echo "${uc} User run done"
-			connections=`grep "Active Virtual Users configured" $out_file | cut -d: -f 2 | cut -d' ' -f 1`
-			tpms=`grep TPM $out_file  | cut -d' ' -f 7`
-			echo ${connections}:${tpms} >> results_hammerdb_mssql.csv
 		fi
 		if [[ $test_to_run == "postgres" ]]; then
-			export uc
 	       		cp runtest_pg.tcl runtest${ctr}_pg.tcl
-			if [ ! -f results_hammerdb_pg.csv ]; then
-				$TOOLS_BIN/test_header_info --front_matter --results_file results_hammerdb_pg.csv --host $to_configuration --sys_type $to_sys_type --tuned $to_tuned_setting --results_version $version --test_name hammerdb_pg
-				echo "# connections:TPM" >> results_hammerdb_pg.csv
-			fi
 			export uc
 	       		sed -i "s/^diset connection pg_host.*/diset connection pg_host ${hostnm}/" runtest${ctr}_pg.tcl
 	       		sed -i "s/^vuset.*/vuset vu ${uc}/" runtest${ctr}_pg.tcl
 			out_file="test_pg_${rundt}_${numhosts}pod_pod1_${uc}.out"
 			export outputfname=$out_file
 	       		./hammerdbcli auto runtest${ctr}_pg.tcl > $out_file 2>&1
-			connections=`grep "Active Virtual Users configured" $out_file | cut -d: -f 2 | cut -d' ' -f 1`
-			tpms=`grep TPM $out_file  | cut -d' ' -f 7`
-			echo ${connections}:${tpms} >> results_hammerdb_pg.csv
 		fi
+		connections=`grep "Active Virtual Users configured" $out_file | cut -d: -f 2 | cut -d' ' -f 1`
+		tpms=`grep TPM $out_file  | cut -d' ' -f 7`
+		echo ${connections}:${tpms} >> ${results_file}
 		ctr=$((ctr + 1))
 		export ctr
 	fi
