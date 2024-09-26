@@ -295,7 +295,7 @@ pushd /usr/local > /dev/null
 rm -rf $test
 popd > /dev/null
 cd $exec_dir
-echo ./run_hammerdb -m /perf1 -t ${test} ${users_to_run} ${warehouses} ${log_mount} > run_this
+echo ./run_hammerdb -m /perf1 -t ${test} ${users_to_run} ${warehouses} ${log_mount} -T ${TOOLS_BIN} > run_this
 chmod 755 run_this
 ./run_this
 
