@@ -1,0 +1,3 @@
+Required_Systems: intel,amd,arm
+Via_Zathras: No
+test:--iterations 1 --disks grab_disks --sub_test mariadb:base_test_results/testmariadb/verify
