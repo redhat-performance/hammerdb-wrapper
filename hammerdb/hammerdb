@@ -18,6 +18,7 @@
 # along with this program; if not, write to the Free Software
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 
+ertc=1
 arguments="$@"
 log_mount=""
 
@@ -128,7 +129,9 @@ fi
 #
 
 ${curdir}/test_tools/gather_data ${curdir}
+pushd $curdir > /dev//null
 source test_tools/general_setup "$@"
+popd  > /dev/null
 
 
 dnf -y install lvm2
@@ -304,12 +307,6 @@ mv HammerDB $test
 
 ${curdir}/test_tools/move_data $curdir $test
 pushd $test
-files=`ls test*out`
-if [ $? -ne 0 ]; then
-	echo Failed >> test_results_report
-else
-	echo Ran >> test_results_report
-fi
 
 cp /tmp/hammerdb.out .
 popd
@@ -319,6 +316,15 @@ tmp_file=`mktemp /tmp/hammer_data.XXXXX`
 find -L $test  -type f  -exec grep -Iq . {} \; -print > $tmp_file
 #echo "/usr/local/${test}/results_hammerdb_*.csv" >> $tmp_file
 egrep  "out|csv|report" $tmp_file | egrep -v "Hammerdb" | grep -v tcl | tar cf /tmp/results_hammerdb_${test}_${to_tuned_setting}.tar --files-from=/dev/stdin
+csv_file=`grep  csv $tmp_file  | grep -v "Hammerdb" | grep -v tcl`
+${curdir}/test_tools/validate_line --results_file $csv_file --base_results_file $exec_dir/base_test_results/test1/verify
+if [ $? -ne 0 ]; then
+	echo Failed > test_results_report
+	ertc=1
+else
+	echo Ran > test_results_report
+fi
+
 ${curdir}/test_tools/save_results --curdir $curdir --home_root $to_home_root --tar_file /tmp/results_hammerdb_${test}_${to_tuned_setting}.tar --test_name hammerdb_$test_name_${test} --tuned_setting=$to_tuned_setting --version "None" --user $to_user
 rm $tmp_file
 
@@ -328,3 +334,4 @@ fi
 ## Re-enable selinux
 setenforce 1
 $TOOLS_BIN/lvm_delete --lvm_vol hammerdb --lvm_grp hammerdb --mount_pnt /perf1
+exit $ertc
