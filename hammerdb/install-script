@@ -83,10 +83,10 @@ install_mariadb()
 	#
 	# Install Mariadb Server and tools
 	#
-#	dnf -y install mariadb.x86_64 mariadb-common.x86_64 mariadb-devel.x86_64 \
-#	mariadb-errmsg.x86_64 mariadb-server.x86_64 mariadb-server-utils.x86_64 mysql-libs.x86_64
-	dnf -y install mariadb.x86_64 mariadb-common.x86_64 \
-	mariadb-errmsg.x86_64 mariadb-server.x86_64 mariadb-server-utils.x86_64
+#	dnf -y install mariadb mariadb-common mariadb-devel \
+#	mariadb-errmsg mariadb-server mariadb-server-utils mysql-libs
+	dnf -y install mariadb mariadb-common \
+	mariadb-errmsg mariadb-server mariadb-server-utils
 
 
 	#
@@ -146,7 +146,7 @@ install_postgres()
 	#
 	# Installing Postgres Server and tools
 	#
-	dnf -y install postgresql.x86_64 postgresql-contrib.x86_64 postgresql-server.x86_64 glibc-langpack-en libpq
+	dnf -y install postgresql postgresql-contrib postgresql-server glibc-langpack-en libpq
 
 	cd /usr/local/HammerDB
 	cp -R /tmp/hammerdb-tpcc/postgres/* .
