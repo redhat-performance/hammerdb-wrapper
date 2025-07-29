@@ -4,8 +4,8 @@
 # [[1-9]][[0-9]]{0,}:[1-9][0-9.]{1,}$
 #
 # Field 1 number connections: [[1-9]][[0-9]]{0,}.  Any value greater than 0
-# Field 2 number transactions per minute: [[1-9]][[0-9]]{0,}.  Any value greater than 0
+# Field 2 number transactions per minute: [[1-9]][[0-9\.]]{0,}.  Any value greater than 0
 %_header
 # connection:TPM
 %_multiples
-[[1-9]][[0-9]]{0,}:[1-9][0-9.]{1,}$
+[[1-9]][[0-9]]{0,}:[1-9][0-9\.]{1,}$
