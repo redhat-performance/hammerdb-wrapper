@@ -20,6 +20,7 @@
 #
 # Script to set the system up for running hammerdb.
 #
+uploads=""
 disks=none
 mountpoint=none
 db_type=none
@@ -195,13 +196,14 @@ install_postgres()
 usage()
 {
   echo "Usage:
-        ./install-script [-h] [-d disk name] [-m mount point] [-t dbtype]
+        ./install-script [-h] [-d disk name] [-m mount point] [-t dbtype] [-u path]
 
         Usage:
         -h help
         -d <disk device name>
         -m <mount point>
 	-t <mariadb, mssql, postgres>
+	-u <path> Kit location
 
 
        Examples:
@@ -241,6 +243,10 @@ do
 			db_type=$2
 			shift 2
 		;;
+		-u) 
+			uploads=$2
+			shift 2
+		;;
 		*)
 			usage;
 			exit;
@@ -268,7 +274,7 @@ setenforce 0
 # Install the hammerdb
 #
 cd /tmp
-tar xf /uploads/hammerdb-tpcc.tar
+tar xf ${uploads}/hammerdb-tpcc.tar
 cd /tmp/hammerdb-tpcc/Hammerdb
 unset DISPLAY
 echo "y" > input
