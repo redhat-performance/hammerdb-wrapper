@@ -20,7 +20,7 @@
 #
 # Script to set the system up for running hammerdb.
 #
-uploads=""
+uploads="/uploads"
 disks=none
 mountpoint=none
 db_type=none
