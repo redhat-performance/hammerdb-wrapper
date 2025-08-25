@@ -91,9 +91,9 @@ install_it()
 			export disklist
 			export mountpoint
 			if [[ $mountpoint == *"none"* ]]; then
-				ssh root@${hostnm} "./install-script -d ${disklist} -t $1 ${log_mount_point}" &
+				ssh root@${hostnm} "./install-script -d ${disklist} -t $1 ${log_mount_point} -u /${to_home_root}/${to_user}/uploads" & 
 			else
-				ssh root@${hostnm} "./install-script -m ${mountpoint} -t $1 ${log_mount_point}" & 
+				ssh root@${hostnm} "./install-script -m ${mountpoint} -t $1 ${log_mount_point} -u /${to_home_root}/${to_user}/uploads" & 
 			fi
 			ctr=$((ctr + 1))
 		done
