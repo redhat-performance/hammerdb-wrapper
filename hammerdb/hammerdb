@@ -20,6 +20,8 @@
 
 arguments="$@"
 log_mount=""
+pcp=""
+pdir=""
 
 curdir=`pwd`
 if [[ $0 == "./"* ]]; then
@@ -127,7 +129,7 @@ fi
 
 ${curdir}/test_tools/gather_data ${curdir}
 source test_tools/general_setup "$@"
-
+export TOOLS_BIN
 
 dnf -y install lvm2
 
@@ -286,8 +288,14 @@ fi
 pushd /usr/local > /dev/null
 rm -rf $test
 popd > /dev/null
+cpdir=""
+if [[ $to_use_pcp -eq 1 ]]; then
+	pdir=/tmp/pcp_`date "+%Y.%m.%d-%H.%M.%S"`
+	pcp="-p ${pdir}"
+	cpdir="--copy_dir $pdir"
+fi
 cd $exec_dir
-echo ./run_hammerdb -m /perf1 -t ${test} ${users_to_run} ${warehouses} ${log_mount} -T ${TOOLS_BIN} > run_this
+echo ./run_hammerdb -m /perf1 -t ${test} ${users_to_run} ${warehouses} ${log_mount} -T ${TOOLS_BIN} $pcp > run_this
 chmod 755 run_this
 ./run_this
 
@@ -310,7 +318,7 @@ tmp_file=`mktemp /tmp/hammer_data.XXXXX`
 find -L $test  -type f  -exec grep -Iq . {} \; -print > $tmp_file
 #echo "/usr/local/${test}/results_hammerdb_*.csv" >> $tmp_file
 egrep  "out|csv|report" $tmp_file | egrep -v "Hammerdb" | grep -v tcl | tar cf /tmp/results_hammerdb_${test}_${to_tuned_setting}.tar --files-from=/dev/stdin
-${curdir}/test_tools/save_results --curdir $curdir --home_root $to_home_root --tar_file /tmp/results_hammerdb_${test}_${to_tuned_setting}.tar --test_name hammerdb_$test_name_${test} --tuned_setting=$to_tuned_setting --version "None" --user $to_user
+${curdir}/test_tools/save_results --curdir $curdir --home_root $to_home_root --tar_file /tmp/results_hammerdb_${test}_${to_tuned_setting}.tar --test_name hammerdb_$test_name_${test} --tuned_setting=$to_tuned_setting --version "None" --user $to_user $cpdir
 rm $tmp_file
 
 if [[ $to_tuned_setting != "none" ]]; then

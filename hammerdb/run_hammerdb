@@ -35,6 +35,8 @@ export Usercount
 test_to_run="none"
 dbhosts="none"
 version="1.0"
+pcp=0
+pcpdir=""
 
 usage()
 {
@@ -46,6 +48,7 @@ usage()
 	echo "   -H <Host names separated by space> - default 127.0.0.1"
 	echo "   -d <device > - default none"
 	echo "   -m <mount points> - default none"
+	echo "   -p <dir> - if pesent use pcp and what the dir is."
 	echo "   -T <tools dir> - Location to find the various test tools."
 	echo "	 -t <test to run> mariadb/postgres/mssql"
 	echo "   -u <user count> - default \"10 20 30 40 50\""
@@ -134,6 +137,9 @@ run_hammerdb_users()
 	# that operates on remote systems, the other that operate on the system we are currently
 	# running on.
 	export uc
+	if [[ $pcp -eq 1 ]]; then
+		start_pcp_subset
+	fi
 	if [[ $dbhosts != "none" ]]; then
 		export ctr=1
 		for hostnm in ${dbhosts}
@@ -217,6 +223,12 @@ run_hammerdb_users()
 		ctr=$((ctr + 1))
 		export ctr
 	fi
+	if [[ $pcp -eq 1 ]]; then
+		echo "Send result to PCP archive"
+		out="${uc}"
+		result2pcp user_count_${uc} ${out}
+		stop_pcp_subset
+	fi
 	echo "${uc} User run done"
 }
 
@@ -267,10 +279,17 @@ shut_down()
 # 
 run_hammerdb()
 {
+	if [[ $pcp -eq 1 ]]; then
+		echo "Start PCP"
+		start_pcp ${pcpdir}/ hammerdb_${test_to_run} $pcp_cfg
+	fi
 	for uc in ${Usercount}
 	do
 		run_hammerdb_users $uc
 	done
+	if [[ $pcp -eq 1 ]]; then
+		shutdown_pcp
+	fi
 }
 
 mariadb_install()
@@ -442,6 +461,11 @@ do
 			mountpoint=$2
 			shift 2
 		;;
+		-p)
+			pcpdir=${2}
+			pcp=1
+			shift 2
+		;;
 		-w)
 			whc=$2
 			shift 2
@@ -477,6 +501,11 @@ mount_check
 #
 # Determine what we are to run and run it.
 #
+if [[ $pcp -eq 1 ]]; then
+	source $TOOLS_BIN/pcp/pcp_commands.inc
+	setup_pcp
+	pcp_cfg=$TOOLS_BIN/pcp/default.cfg
+fi
 if [[ $test_to_run == "mariadb" ]]; then
 	if [[ $whc == "" ]]; then
 		whc=1000
