@@ -131,8 +131,6 @@ ${curdir}/test_tools/gather_data ${curdir}
 source test_tools/general_setup "$@"
 export TOOLS_BIN
 
-dnf -y install lvm2
-
 unset DISPLAY
 users_to_run=""
 test="none"
@@ -274,6 +272,12 @@ done
 if [[ $test == "none" ]]; then
 	echo You must designate a test, mssql, mariadb, postgres
 	usage $0
+fi
+
+${TOOLS_BIN}/package_tool --wrapper_config ${run_dir}/hammerdb_${test}.json --no_packages $to_no_pkg_install
+if [[ $? -ne 0 ]]; then
+	echo Packaging installed failed.
+	exit 1
 fi
 
 create_and_mount_fs

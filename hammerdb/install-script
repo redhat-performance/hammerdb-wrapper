@@ -82,15 +82,6 @@ install_mssql()
 install_mariadb()
 {
 	#
-	# Install Mariadb Server and tools
-	#
-#	dnf -y install mariadb mariadb-common mariadb-devel \
-#	mariadb-errmsg mariadb-server mariadb-server-utils mysql-libs
-	dnf -y install mariadb mariadb-common \
-	mariadb-errmsg mariadb-server mariadb-server-utils
-
-
-	#
 	# Configure things in and mount the appropriate item.
 	#
 	cd /usr/local/HammerDB
@@ -144,11 +135,6 @@ install_mariadb()
 
 install_postgres()
 {
-	#
-	# Installing Postgres Server and tools
-	#
-	dnf -y install postgresql postgresql-contrib postgresql-server glibc-langpack-en libpq
-
 	cd /usr/local/HammerDB
 	cp -R /tmp/hammerdb-tpcc/postgres/* .
 
