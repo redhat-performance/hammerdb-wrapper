@@ -27,14 +27,14 @@ curdir=`pwd`
 if [[ $0 == "./"* ]]; then
 	chars=`echo $0 | awk -v RS='/' 'END{print NR-1}'`
 	if [[ $chars == 1 ]]; then
-		exec_dir=`pwd`
+		run_dir=`pwd`
 	else
-		exec_dir=`echo $0 | cut -d'/' -f 1-${chars} | cut -d'.' -f2-`
-		exec_dir="${curdir}${exec_dir}"
+		run_dir=`echo $0 | cut -d'/' -f 1-${chars} | cut -d'.' -f2-`
+		run_dir="${curdir}${run_dir}"
 	fi
 else
 	chars=`echo $0 | awk -v RS='/' 'END{print NR-1}'`
-	exec_dir=`echo $0 | cut -d'/' -f 1-${chars}`
+	run_dir=`echo $0 | cut -d'/' -f 1-${chars}`
 fi
 
 
@@ -298,7 +298,7 @@ if [[ $to_use_pcp -eq 1 ]]; then
 	pcp="-p ${pdir}"
 	cpdir="--copy_dir $pdir"
 fi
-cd $exec_dir
+cd $run_dir
 echo ./run_hammerdb -m /perf1 -t ${test} ${users_to_run} ${warehouses} ${log_mount} -T ${TOOLS_BIN} $pcp > run_this
 chmod 755 run_this
 ./run_this
