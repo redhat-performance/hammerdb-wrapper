@@ -81,6 +81,7 @@ install_mssql()
 
 install_mariadb()
 {
+	${TOOLS_BIN}/package_tool --wrapper_config ${RUN_DIR}/hammerdb_mariadb.json --no_packages $to_no_pkg_install
 	#
 	# Configure things in and mount the appropriate item.
 	#
@@ -135,6 +136,11 @@ install_mariadb()
 
 install_postgres()
 {
+	#
+	# Installing Postgres Server and tools
+	#
+	${TOOLS_BIN}/package_tool --wrapper_config ${RUN_DIR}/hammerdb_postgres.json --no_packages $to_no_pkg_install
+
 	cd /usr/local/HammerDB
 	cp -R /tmp/hammerdb-tpcc/postgres/* .
 

@@ -1,60 +1,11 @@
 {
     "dependencies": {
-        "amzn": [
-            "gcc",
-            "bc",
-            "zip",
-            "unzip",
-            "numactl",
-            "wget",
-            "gcc-c++",
-            "autoconf",
-            "hwloc",
-            "hwloc-gui",
-            "libomp"
-        ],
         "rhel": [
-            "lvm2",
-            "sysstat",
-            "tar",
-            "bc",
-            "perf",
-            "git",
-            "unzip",
-            "zip",
             "mariadb",
             "mariadb-common",
             "mariadb-errmsg",
             "mariadb-server",
             "mariadb-server-utils"
-        ],
-        "sles": [
-            "gcc",
-            "make",
-            "bc",
-            "perf",
-            "git",
-            "unzip",
-            "zip",
-            "libnuma1",
-            "numactl",
-            "wget",
-            "gcc-c++",
-            "autoconf",
-            "hwloc",
-            "hwloc-gui",
-            "libomp"
-        ],
-        "ubuntu": [
-            "bc",
-            "zip",
-            "unzip",
-            "numactl",
-	    "libnuma-dev",
-            "g++",
-            "autoconf",
-            "hwloc",
-            "libomp5-20"
         ],
         "pip": [
         ]
