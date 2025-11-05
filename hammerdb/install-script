@@ -79,9 +79,18 @@ install_mssql()
 	./update_temp_mnt.sh -m ${mountpoint} > upd_tmp.out 2>&1
 }
 
+install_packages()
+{
+	${TOOLS_BIN}/package_tool --wrapper_config ${RUN_DIR}/${1} --no_packages $to_no_pkg_install
+	if [[ $? -ne 0 ]]; then
+		echo Package installation of ${1}, using ${TOOLS_BIN}/package_tool was unsuccessful.
+		exit 1
+	fi
+}
+
 install_mariadb()
 {
-	${TOOLS_BIN}/package_tool --wrapper_config ${RUN_DIR}/hammerdb_mariadb.json --no_packages $to_no_pkg_install
+	install_packages hammerdb_mariadb.json
 	#
 	# Configure things in and mount the appropriate item.
 	#
@@ -139,7 +148,7 @@ install_postgres()
 	#
 	# Installing Postgres Server and tools
 	#
-	${TOOLS_BIN}/package_tool --wrapper_config ${RUN_DIR}/hammerdb_postgres.json --no_packages $to_no_pkg_install
+	install_packages hammerdb_postgres.json
 
 	cd /usr/local/HammerDB
 	cp -R /tmp/hammerdb-tpcc/postgres/* .
