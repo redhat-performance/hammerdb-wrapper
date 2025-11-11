@@ -27,16 +27,16 @@ curdir=`pwd`
 if [[ $0 == "./"* ]]; then
 	chars=`echo $0 | awk -v RS='/' 'END{print NR-1}'`
 	if [[ $chars == 1 ]]; then
-		exec_dir=`pwd`
+		RUN_DIR=`pwd`
 	else
-		exec_dir=`echo $0 | cut -d'/' -f 1-${chars} | cut -d'.' -f2-`
-		exec_dir="${curdir}${exec_dir}"
+		RUN_DIR=`echo $0 | cut -d'/' -f 1-${chars} | cut -d'.' -f2-`
+		RUN_DIR="${curdir}${RUN_DIR}"
 	fi
 else
 	chars=`echo $0 | awk -v RS='/' 'END{print NR-1}'`
-	exec_dir=`echo $0 | cut -d'/' -f 1-${chars}`
+	RUN_DIR=`echo $0 | cut -d'/' -f 1-${chars}`
 fi
-
+export RUN_DIR
 
 if [ ! -f "/tmp/hammerdb.out" ]; then
         command="${0} $@"
@@ -130,8 +130,6 @@ fi
 ${curdir}/test_tools/gather_data ${curdir}
 source test_tools/general_setup "$@"
 export TOOLS_BIN
-
-dnf -y install lvm2
 
 unset DISPLAY
 users_to_run=""
@@ -276,6 +274,12 @@ if [[ $test == "none" ]]; then
 	usage $0
 fi
 
+${TOOLS_BIN}/package_tool --wrapper_config ${RUN_DIR}/hammerdb.json --no_packages $to_no_pkg_install
+if [[ $? -ne 0 ]]; then
+	echo Package installation using ${TOOLS_BIN}/package_tool was unsuccessful.
+	exit 1
+fi
+
 create_and_mount_fs
 
 #
@@ -294,7 +298,7 @@ if [[ $to_use_pcp -eq 1 ]]; then
 	pcp="-p ${pdir}"
 	cpdir="--copy_dir $pdir"
 fi
-cd $exec_dir
+cd $RUN_DIR
 echo ./run_hammerdb -m /perf1 -t ${test} ${users_to_run} ${warehouses} ${log_mount} -T ${TOOLS_BIN} $pcp > run_this
 chmod 755 run_this
 ./run_this

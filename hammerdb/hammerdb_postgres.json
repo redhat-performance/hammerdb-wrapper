@@ -1,0 +1,13 @@
+{
+    "dependencies": {
+        "rhel": [
+            "postgresql",
+            "postgresql-contrib",
+            "postgresql-server",
+            "glibc-langpack-en",
+            "libpq"
+        ],
+        "pip": [
+        ]
+    }
+}
