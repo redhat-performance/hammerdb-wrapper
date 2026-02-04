@@ -24,7 +24,6 @@
 # Automates the installation and execution of the hammerdb tests, mariadb, postgress and
 # mssql.
 #
-TOOLS_BIN=""
 mountpoint=none
 log_mount_point=""
 disklist=none
@@ -123,6 +122,7 @@ install_it()
 	echo $1 installed and started.  Doing required builds
 }
 
+source ${TOOLS_BIN}/helpers.inc
 #
 # General run
 #
@@ -184,11 +184,14 @@ run_hammerdb_users()
 		export ctr=1
 		results_file=results_hammerdb_${test_to_run}.csv
 		if [[ ! -f $results_file ]]; then
-			$TOOLS_BIN/test_header_info --front_matter --results_file $results_file --host $to_configuration --sys_type $to_sys_type --tuned $to_tuned_setting --results_version $version --test_name hammerdb_${test_to_run}
-			echo "# connection:TPM" >> $results_file
+			$TOOLS_BIN/test_header_info --front_matter --results_file $results_file --host $to_configuration --sys_type $to_sys_type --tuned $to_tuned_setting --results_version $version --test_name hammerdb_${test_to_run} --field_header "# connection,TPM"
 		fi
+		start_time=$(retrieve_time_stamp)
 		export uc
 		if [[ $test_to_run == "mariadb" ]]; then
+			if [[ $pcp -eq 1 ]]; then
+				results2pcp_multiple "mariadb:1"
+			fi
 			cp runtest_mariadb.tcl runtest${ctr}_mariadb.tcl
 			out_file="test_mariadb_${rundt}_${numhosts}pod_pod1_${uc}.out"
 			sed -i "s/^diset connection mysql_host.*/diset connection mysql_host ${hostnm}/" runtest${ctr}_mariadb.tcl
@@ -200,6 +203,9 @@ run_hammerdb_users()
 			export whc
 			export hostnm
 			export uc
+			if [[ $pcp -eq 1 ]]; then
+				results2pcp_multiple "mssql:1"
+			fi
 			out_file="test_mssql_${rundt}_${numhosts}VM_VM${ctr}_${uc}.out"
 			cp runtest_mssql.tcl runtest${ctr}_mssql.tcl
  			sed -i "s/^diset tpcc mssqls_count_ware.*/diset tpcc mssqls_count_ware ${whc}/" runtest${ctr}_mssql.tcl
@@ -211,23 +217,27 @@ run_hammerdb_users()
 		if [[ $test_to_run == "postgres" ]]; then
 	       		cp runtest_pg.tcl runtest${ctr}_pg.tcl
 			export uc
+			if [[ $pcp -eq 1 ]]; then
+				results2pcp_multiple "postgres:1"
+			fi
 	       		sed -i "s/^diset connection pg_host.*/diset connection pg_host ${hostnm}/" runtest${ctr}_pg.tcl
 	       		sed -i "s/^vuset.*/vuset vu ${uc}/" runtest${ctr}_pg.tcl
 			out_file="test_pg_${rundt}_${numhosts}pod_pod1_${uc}.out"
 			export outputfname=$out_file
 	       		./hammerdbcli auto runtest${ctr}_pg.tcl > $out_file 2>&1
 		fi
+		end_time=$(retrieve_time_stamp)
 		connections=`grep "Active Virtual Users configured" $out_file | cut -d: -f 2 | cut -d' ' -f 1`
 		tpms=`grep TPM $out_file  | cut -d' ' -f 7`
-		echo ${connections}:${tpms} >> ${results_file}
+		out_string=$(build_data_string "${connections}" "${tpms}" "${start_time}" "${end_time}")
+		echo $out_string >> $results_file
+		if [[ $pcp -eq 1 ]]; then
+			results2pcp_multiple "connections:$connections,TPM:$tpms"
+			reset_pcp_om
+			stop_pcp_subset
+		fi
 		ctr=$((ctr + 1))
 		export ctr
-	fi
-	if [[ $pcp -eq 1 ]]; then
-		echo "Send result to PCP archive"
-		out="${uc}"
-		result2pcp user_count_${uc} ${out}
-		stop_pcp_subset
 	fi
 	echo "${uc} User run done"
 }
@@ -280,6 +290,8 @@ shut_down()
 run_hammerdb()
 {
 	if [[ $pcp -eq 1 ]]; then
+		setup_pcp
+		pcp_cfg=$TOOLS_BIN/pcp/default.cfg
 		echo "Start PCP"
 		start_pcp ${pcpdir}/ hammerdb_${test_to_run} $pcp_cfg
 	fi
@@ -288,6 +300,7 @@ run_hammerdb()
 		run_hammerdb_users $uc
 	done
 	if [[ $pcp -eq 1 ]]; then
+		stop_pcp
 		shutdown_pcp
 	fi
 }
@@ -474,10 +487,6 @@ do
 			Usercount=$2
 			shift 2
 		;;
-		-T)
-			TOOLS_BIN=$2
-			shift 2
-		;;
 		-t)
 			test_to_run=$2
 			shift 2
@@ -503,8 +512,6 @@ mount_check
 #
 if [[ $pcp -eq 1 ]]; then
 	source $TOOLS_BIN/pcp/pcp_commands.inc
-	setup_pcp
-	pcp_cfg=$TOOLS_BIN/pcp/default.cfg
 fi
 if [[ $test_to_run == "mariadb" ]]; then
 	if [[ $whc == "" ]]; then
