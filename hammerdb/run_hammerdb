@@ -184,7 +184,7 @@ run_hammerdb_users()
 		export ctr=1
 		results_file=results_hammerdb_${test_to_run}.csv
 		if [[ ! -f $results_file ]]; then
-			$TOOLS_BIN/test_header_info --front_matter --results_file $results_file --host $to_configuration --sys_type $to_sys_type --tuned $to_tuned_setting --results_version $version --test_name hammerdb_${test_to_run} --field_header "# connection,TPM"
+			$TOOLS_BIN/test_header_info --front_matter --results_file $results_file --host $to_configuration --sys_type $to_sys_type --tuned $to_tuned_setting --results_version $version --test_name hammerdb_${test_to_run} --field_header "connection,TPM"
 		fi
 		start_time=$(retrieve_time_stamp)
 		export uc
