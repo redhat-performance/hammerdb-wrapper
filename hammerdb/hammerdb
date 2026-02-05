@@ -27,16 +27,16 @@ curdir=`pwd`
 if [[ $0 == "./"* ]]; then
 	chars=`echo $0 | awk -v RS='/' 'END{print NR-1}'`
 	if [[ $chars == 1 ]]; then
-		RUN_DIR=`pwd`
+		run_dir=`pwd`
 	else
-		RUN_DIR=`echo $0 | cut -d'/' -f 1-${chars} | cut -d'.' -f2-`
-		RUN_DIR="${curdir}${RUN_DIR}"
+		run_dir=`echo $0 | cut -d'/' -f 1-${chars} | cut -d'.' -f2-`
+		run_dir="${curdir}${run_dir}"
 	fi
 else
 	chars=`echo $0 | awk -v RS='/' 'END{print NR-1}'`
-	RUN_DIR=`echo $0 | cut -d'/' -f 1-${chars}`
+	run_dir=`echo $0 | cut -d'/' -f 1-${chars}`
 fi
-export RUN_DIR
+export run_dir
 
 if [ ! -f "/tmp/hammerdb.out" ]; then
         command="${0} $@"
@@ -49,6 +49,7 @@ fi
 
 
 test_name="hammerdb"
+export test_name
 
 ## Disable selinux
 setenforce 0
@@ -130,6 +131,7 @@ fi
 ${curdir}/test_tools/gather_data ${curdir}
 source test_tools/general_setup "$@"
 export TOOLS_BIN
+export to_no_pkg_install
 
 unset DISPLAY
 users_to_run=""
@@ -274,7 +276,7 @@ if [[ $test == "none" ]]; then
 	usage $0
 fi
 
-${TOOLS_BIN}/package_tool --wrapper_config ${RUN_DIR}/hammerdb.json --no_packages $to_no_pkg_install
+${TOOLS_BIN}/package_tool --wrapper_config ${run_dir}/hammerdb.json --no_packages $to_no_pkg_install
 if [[ $? -ne 0 ]]; then
 	echo Package installation using ${TOOLS_BIN}/package_tool was unsuccessful.
 	exit 1
@@ -298,8 +300,8 @@ if [[ $to_use_pcp -eq 1 ]]; then
 	pcp="-p ${pdir}"
 	cpdir="--copy_dir $pdir"
 fi
-cd $RUN_DIR
-echo ./run_hammerdb -m /perf1 -t ${test} ${users_to_run} ${warehouses} ${log_mount} -T ${TOOLS_BIN} $pcp > run_this
+cd $run_dir
+echo ./run_hammerdb -m /perf1 -t ${test} ${users_to_run} ${warehouses} ${log_mount} $pcp > run_this
 chmod 755 run_this
 ./run_this
 
