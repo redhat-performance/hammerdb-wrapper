@@ -81,7 +81,7 @@ install_mssql()
 
 install_packages()
 {
-	${TOOLS_BIN}/package_tool --wrapper_config ${RUN_DIR}/${1} --no_packages $to_no_pkg_install
+	${TOOLS_BIN}/package_tool --wrapper_config ${run_dir}/${1} --no_packages $to_no_pkg_install
 	if [[ $? -ne 0 ]]; then
 		echo Package installation of ${1}, using ${TOOLS_BIN}/package_tool was unsuccessful.
 		exit 1
