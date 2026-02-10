@@ -48,7 +48,6 @@ usage()
 	echo "   -d <device > - default none"
 	echo "   -m <mount points> - default none"
 	echo "   -p <dir> - if pesent use pcp and what the dir is."
-	echo "   -T <tools dir> - Location to find the various test tools."
 	echo "	 -t <test to run> mariadb/postgres/mssql"
 	echo "   -u <user count> - default \"10 20 30 40 50\""
 	echo "   -w <warehouse count> - default "\500\""

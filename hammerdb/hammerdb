@@ -176,7 +176,6 @@ ARGUMENT_LIST=(
 	"log_disks"
 	"run_user"
 	"sub_test"
-	"tools_git"
 	"warehouses"
 	"users"
 )
