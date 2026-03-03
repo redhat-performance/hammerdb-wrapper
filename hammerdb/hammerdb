@@ -22,6 +22,7 @@ arguments="$@"
 log_mount=""
 pcp=""
 pdir=""
+script_dir=$(realpath $(dirname $0))
 
 curdir=`pwd`
 if [[ $0 == "./"* ]]; then
@@ -42,9 +43,10 @@ if [ ! -f "/tmp/hammerdb.out" ]; then
         command="${0} $@"
         echo $command
         $command &> /tmp/hammerdb.out
+	rtc=$?
 	cat /tmp/hammerdb.out
 	rm /tmp/hammerdb.out
-	exit
+	exit $rtc
 fi
 
 
@@ -61,6 +63,16 @@ fs="xfs"
 tools_git=https://github.com/redhat-performance/test_tools-wrappers
 warehouses=""
 
+TOOLS_BIN="${HOME}/test_tools"
+export TOOLS_BIN
+if [ ! -d "${TOOLS_BIN}" ]; then
+        git clone $tools_git ${TOOLS_BIN}
+        if [ $? -ne 0 ]; then
+                echo pulling git $tools_git failed.
+                exit
+        fi
+fi
+
 usage()
 {
 	echo "$1 usge:"
@@ -76,44 +88,10 @@ usage()
 	echo "--users <users>: Comma separate of the number of users to run.  Example"
 	echo "     --users 10,20,30"
 	echo "--usage: This usage message"
-	test_tools/general_setup --usage
+	${TOOLS_BIN}/general_setup --usage
 	exit
 }
 
-#
-# Clone the repo that contains the common code and tools
-#
-found=0
-show_usage=0
-for arg in "$@"; do
-	if [ $found -eq 1 ]; then
-		tools_git=$arg
-		break;
-	fi
-	if [[ $arg == "--tools_git" ]]; then
-		found=1
-	fi
-
-	#
-	# Check to see if usage is requested, if so call usage.
-	# We do this so we do not pull in the common git.
-	#
-	if [[ $arg == "--usage" ]]; then
-		show_usage=1
-	fi
-done
-
-if [ ! -d "test_tools" ]; then
-        git clone $tools_git test_tools
-        if [ $? -ne 0 ]; then
-                echo pulling git $tools_git failed.
-                exit
-        fi
-fi
-
-if [ $show_usage -eq 1 ]; then
-	usage $0
-fi
 #
 # Variables set
 #
@@ -128,9 +106,8 @@ fi
 # to_tuned_setting: tuned setting
 #
 
-${curdir}/test_tools/gather_data ${curdir}
-source test_tools/general_setup "$@"
-export TOOLS_BIN
+${TOOLS_BIN}/gather_data ${curdir}
+source ${TOOLS_BIN}/general_setup "$@"
 export to_no_pkg_install
 
 unset DISPLAY
@@ -199,7 +176,6 @@ ARGUMENT_LIST=(
 	"log_disks"
 	"run_user"
 	"sub_test"
-	"tools_git"
 	"warehouses"
 	"users"
 )
@@ -276,7 +252,7 @@ if [[ $test == "none" ]]; then
 	usage $0
 fi
 
-${TOOLS_BIN}/package_tool --wrapper_config ${run_dir}/hammerdb.json --no_packages $to_no_pkg_install
+package_tool --wrapper_config ${run_dir}/hammerdb.json --no_packages $to_no_pkg_install
 if [[ $? -ne 0 ]]; then
 	echo Package installation using ${TOOLS_BIN}/package_tool was unsuccessful.
 	exit 1
@@ -308,7 +284,7 @@ chmod 755 run_this
 cd /usr/local
 mv HammerDB $test
 
-${curdir}/test_tools/move_data $curdir $test
+${TOOLS_BIN}/move_data $curdir $test
 pushd $test
 files=`ls test*out`
 if [ $? -ne 0 ]; then
@@ -324,7 +300,11 @@ tmp_file=`mktemp /tmp/hammer_data.XXXXX`
 find -L $test  -type f  -exec grep -Iq . {} \; -print > $tmp_file
 #echo "/usr/local/${test}/results_hammerdb_*.csv" >> $tmp_file
 egrep  "out|csv|report" $tmp_file | egrep -v "Hammerdb" | grep -v tcl | tar cf /tmp/results_hammerdb_${test}_${to_tuned_setting}.tar --files-from=/dev/stdin
-${curdir}/test_tools/save_results --curdir $curdir --home_root $to_home_root --tar_file /tmp/results_hammerdb_${test}_${to_tuned_setting}.tar --test_name hammerdb_$test_name_${test} --tuned_setting=$to_tuned_setting --version "None" --user $to_user $cpdir
+csv_file=`grep  "csv" $tmp_file | grep -v "Hammerdb"`
+${TOOLS_BIN}/csv_to_json $to_json_flags --csv_file $csv_file --output_file results_hammer.json
+$TOOLS_BIN/verify_results $to_verify_flags --schema_file $script_dir/results_schema.py --class_name Hammerdb_Results --file results_hammer.json
+rtc=$?
+${TOOLS_BIN}/save_results --curdir $curdir --home_root $to_home_root --tar_file /tmp/results_hammerdb_${test}_${to_tuned_setting}.tar --test_name hammerdb_$test_name_${test} --tuned_setting=$to_tuned_setting --version "None" --user $to_user $cpdir
 rm $tmp_file
 
 if [[ $to_tuned_setting != "none" ]]; then
@@ -333,3 +313,4 @@ fi
 ## Re-enable selinux
 setenforce 1
 $TOOLS_BIN/lvm_delete --lvm_vol hammerdb --lvm_grp hammerdb --mount_pnt /perf1
+exit $rtc
