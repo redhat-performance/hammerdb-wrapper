@@ -110,9 +110,9 @@ install_it()
 		# Local system
 		#
 		if [[ $mountpoint == *"none"* ]]; then
-			./install-script -d ${disklist} -t $1 ${log_mount_point}
+			./install-script -d ${disklist} -t $1 ${log_mount_point} -u /${to_home_root}/${to_user}/uploads
 		else
-			./install-script -m ${mountpoint} -t $1 ${log_mount_point}
+			./install-script -m ${mountpoint} -t $1 ${log_mount_point} -u /${to_home_root}/${to_user}/uploads
 		fi
 		if [[ $2 != "none" ]]; then
 			systemctl restart ${2} 
