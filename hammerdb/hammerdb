@@ -95,7 +95,7 @@ attempt_tools_git()
         if [[ ! -d "$TOOLS_BIN" ]]; then
                 git clone $tools_git "$TOOLS_BIN"
                 if [ $? -ne 0 ]; then
-                        exit_out "Error: pulling git $tools_git failed." 1
+                        exit_out "Error: pulling git $tools_git failed." $E_GENERAL
                 fi
         fi
 }
@@ -120,7 +120,7 @@ usage()
 	echo "     --users 10,20,30"
 	echo "--usage: This usage message"
 	${TOOLS_BIN}/general_setup --usage
-	exit
+	exit $E_USAGE
 }
 
 #
@@ -152,7 +152,7 @@ create_and_mount_fs()
 		results=`$TOOLS_BIN/grab_disks ${disks}`
 		if [ $? -ne 0 ]; then
 			echo grab disks failed.
-			exit 1
+			exit $E_GENERAL
 		fi
         	max_disks=`echo $results | cut -d: -f 2`
         	disks=`echo $results | cut -d: -f 1  | sed "s/,/ /g"`
@@ -170,13 +170,13 @@ create_and_mount_fs()
 	$TOOLS_BIN/lvm_create --devices "${disks}" --lvm_vol hammerdb --lvm_grp hammerdb --wipefs
 	if [ $? -ne 0 ]; then
 		echo LVM create failed.
-		exit 1
+		exit $E_GENERAL
 	fi
 	mkdir -p /perf1
 	$TOOLS_BIN/create_filesystem --fs_type $fs --mount_dir /perf1 --device /dev/hammerdb/hammerdb
 	if [ $? -ne 0 ]; then
 		echo filesystem create failed.
-		exit 1
+		exit $E_GENERAL
 	fi
 
 	if [[ $log_disks != "" ]]; then
@@ -186,12 +186,12 @@ create_and_mount_fs()
 		$TOOLS_BIN/lvm_create --devices "${log_disks}" --lvm_vol log_hammerdb --lvm_grp log_hammerdb --wipefs
 		if [ $? -ne 0 ]; then
 			echo LVM create of log disk failed.
-			exit 1
+			exit $E_GENERAL
 		fi
 		$TOOLS_BIN/create_filesystem --fs_type $fs --mount_dir /perf2 --device /dev/log_hammerdb/log_hammerdb
 		if [ $? -ne 0 ]; then
 			echo filesystem create for log failed.
-			exit 1
+			exit $E_GENERAL
 		fi
 	fi
 }
@@ -225,7 +225,7 @@ opts=$(getopt \
 )
 
 if [ $? -ne 0 ]; then
-	exit
+	exit $E_PARSE_ARGS
 fi
 
 eval set --$opts
@@ -284,9 +284,10 @@ if [[ $test == "none" ]]; then
 fi
 
 package_tool --wrapper_config ${run_dir}/hammerdb.json --no_packages $to_no_pkg_install
-if [[ $? -ne 0 ]]; then
+prtc=$?
+if [[ $prtc -ne 0 ]]; then
 	echo Package installation using ${TOOLS_BIN}/package_tool was unsuccessful.
-	exit 1
+	exit $prtc
 fi
 
 create_and_mount_fs

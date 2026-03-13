@@ -20,6 +20,7 @@
 #
 # Script to set the system up for running hammerdb.
 #
+source ${TOOLS_BIN}/error_codes
 uploads="/uploads"
 disks=none
 mountpoint=none
@@ -82,9 +83,10 @@ install_mssql()
 install_packages()
 {
 	${TOOLS_BIN}/package_tool --wrapper_config ${run_dir}/${1} --no_packages $to_no_pkg_install
-	if [[ $? -ne 0 ]]; then
+	prtc=$?
+	if [[ $prtc -ne 0 ]]; then
 		echo Package installation of ${1}, using ${TOOLS_BIN}/package_tool was unsuccessful.
-		exit 1
+		exit $prtc
 	fi
 }
 
@@ -211,6 +213,7 @@ usage()
         ./install-script -d '/dev/sdb' 
         ./install-script -d '/perf1' 
   "
+  exit $E_USAGE
 }
 
 #
@@ -218,7 +221,6 @@ usage()
 #
 if [ $# -eq 0 ]; then
     usage;
-    exit;
 fi
 
 while [ $# -gt 0 ]
@@ -226,7 +228,6 @@ do
 	case $1 in
         	-h)
 			usage;
-			exit;
 		;;
         	-d)
 			disks=$2
@@ -250,7 +251,6 @@ do
 		;;
 		*)
 			usage;
-			exit;
 		;;
 	esac
 done
@@ -258,7 +258,6 @@ done
 if [[ $db_type == "none" ]]; then
 	echo You need to designate the db type.
 	usage
-	exit
 fi
 
 #
@@ -304,16 +303,12 @@ if [[ $log_mount_point == "none" ]]; then
 fi
 if [[ $db_type == "mssql" ]]; then
 	install_mssql
-	exit
-fi
-
-if [[ $db_type == "mariadb" ]]; then
+elif [[ $db_type == "mariadb" ]]; then
 	install_mariadb
-	exit
-fi
-
-if [[ $db_type == "postgres" ]]; then
+elif [[ $db_type == "postgres" ]]; then
 	install_postgres
-	exit
+else
+	echo $db_type is not known, bailing.
+	exit $E_GENERAL
 fi
-
+exit $E_SUCCESS
