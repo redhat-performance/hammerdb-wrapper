@@ -24,6 +24,7 @@
 # Automates the installation and execution of the hammerdb tests, mariadb, postgress and
 # mssql.
 #
+source ${TOOLS_BIN}/error_codes
 mountpoint=none
 log_mount_point=""
 disklist=none
@@ -58,7 +59,7 @@ usage()
 	echo "   ./run_hammerdb.sh -H \"10.16.31.32 10.16.31.33\" -d \"/dev/vdb\" -t mssql"
 	echo "   ./run_hammerdb.sh -H \"10.16.31.32 10.16.31.33\" -m \"/perf1\" -t mariadb"
 	echo "   ./run_hammerdb.sh -H \"dhcp31-32 dhcp31-33" -m \"/perf1\" -w 100 -u \"10 20\" -t mariadb"
-	exit
+	exit $E_USAGE
 }
 
 #
@@ -69,7 +70,7 @@ mount_check()
 	if [[ $mountpoint == *"none"* ]]; then
 		if [[ $disklist == *"none"* ]]; then
 			echo "Please specify a disk device or Mount Point"
-			exit;
+			exit $E_GENERAL
 		else
 			echo "Using Disks"
 		fi
@@ -532,4 +533,4 @@ if [[ $test_to_run == "postgres" ]]; then
 	fi
        	postgres_test
 fi
-
+exit $E_SUCCESS
