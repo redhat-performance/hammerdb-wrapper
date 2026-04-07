@@ -1,0 +1,22 @@
+control_files=/perf1/oracle/control_001
+
+recovery_parallelism 		  = 192
+db_name                           = tpccdb
+db_files                          = 110
+sga_target                        = 131072M
+open_cursors                      = 3000
+log_checkpoint_interval           = 1000000000
+log_checkpoint_timeout            = 0
+log_checkpoints_to_alert          = TRUE
+log_buffer                        = 10485760 # 1M
+open_cursors                      = 1000
+processes=4900
+# transactions = Derived (1.1 * sessions)
+# session determines the maximum number of concurrent users
+sessions                          = 1000
+db_block_size = 8192
+
+db_file_multiblock_read_count     = 1
+
+filesystemio_options=setall # to enable asyncio and DIO
+

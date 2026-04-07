@@ -21,6 +21,7 @@
 # Script to set the system up for running hammerdb.
 #
 source ${TOOLS_BIN}/error_codes
+source ${TOOLS_BIN}/helpers.inc
 disks=none
 mountpoint=none
 db_type=none
@@ -41,7 +42,7 @@ install_mssql()
 	ACCEPT_EULA=Y yum install -y mssql-tools unixODBC-devel
 	echo 'export PATH="$PATH:/opt/mssql-tools/bin"' >> ~/.bash_profile
 	cd $hmd_dir
-	cp -R  ${script_dir}/hammerdb-tpcc/mssql/* .
+	cp -R  ${script_dir}/hammerdb_scripts/mssql/* .
 
 
 	rm -rf ${mountpoint}/mssql_data/*
@@ -102,7 +103,7 @@ install_mariadb()
 	# Configure things in and mount the appropriate item.
 	#
 	cd $hmd_dir
-	cp -R ${script_dir}/hammerdb-tpcc/mariadb/* .
+	cp -R ${script_dir}/hammerdb_scripts/mariadb/* .
 
 	#
 	# Clean up any residual stuff and set up the directories
@@ -134,7 +135,7 @@ install_mariadb()
 	fi
 	sed -i "/innodb_file_per_table/a innodb_log_group_home_dir = ${log_mount_point}\/mysql\/log" my.cnf
 
-	/usr/bin/cp my.cnf /etc/my.cnf
+	/usr/bin/cp /my.cnf /etc/my.cnf
 
 	systemctl restart mariadb.service
 
@@ -158,7 +159,7 @@ install_postgres()
 	install_packages hammerdb_postgres.json
 
 	cd $hmd_dir
-	cp -R ${script_dir}/hammerdb-tpcc/postgres/* .
+	cp -R ${script_dir}/hammerdb_scripts/postgres/* .
 
 	rm -rf /var/lib/pgsql/data
 	rm -rf ${mountpoint}/postgres_data

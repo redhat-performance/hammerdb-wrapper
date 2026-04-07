@@ -1,0 +1,18 @@
+control_files=/perf1/oracle/control_001
+#### Init.ora parameter files for creation of the database ###### 
+db_name = tpccdb
+db_block_size = 8192
+#### Memory Management ###### 
+sga_target = 24576M
+#### Undo Management ###### 
+#max_rollback_segments = 520
+undo_management=auto
+#undo_suppress_errors=true
+####  IO Asynch ###### 
+tape_asynch_io=true
+disk_asynch_io=true
+
+#oastoltpload crashes on some systems unless we turn this off.
+_log_parallelism_dynamic=false
+filesystemio_options=setall # to enable asyncio and DIO
+
