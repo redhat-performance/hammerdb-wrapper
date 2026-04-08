@@ -93,9 +93,9 @@ install_it()
 			export disklist
 			export mountpoint
 			if [[ $mountpoint == *"none"* ]]; then
-				ssh root@${hostnm} "./install-script -d ${disklist} -t $1 ${log_mount_point} -u /${to_home_root}/${to_user}/uploads" & 
+				ssh root@${hostnm} "./install-script -d ${disklist} -t $1 ${log_mount_point}
 			else
-				ssh root@${hostnm} "./install-script -m ${mountpoint} -t $1 ${log_mount_point} -u /${to_home_root}/${to_user}/uploads" & 
+				ssh root@${hostnm} "./install-script -m ${mountpoint} -t $1 ${log_mount_point}
 			fi
 			ctr=$((ctr + 1))
 		done
@@ -111,9 +111,9 @@ install_it()
 		# Local system
 		#
 		if [[ $mountpoint == *"none"* ]]; then
-			./install-script -d ${disklist} -t $1 ${log_mount_point} -u /${to_home_root}/${to_user}/uploads
+			./install-script -d ${disklist} -t $1 ${log_mount_point}
 		else
-			./install-script -m ${mountpoint} -t $1 ${log_mount_point} -u /${to_home_root}/${to_user}/uploads
+			./install-script -m ${mountpoint} -t $1 ${log_mount_point}
 		fi
 		if [[ $2 != "none" ]]; then
 			systemctl restart ${2} 
@@ -146,25 +146,25 @@ run_hammerdb_users()
 		do
 			export $hostnm
 			if [[ $test_to_run == "mariadb" ]]; then
-				ssh root@${hostnm} "cd /usr/local/HammerDB; cp runtest_mariadb.tcl runtest${ctr}_mariadb.tcl"
-				ssh root@${hostnm} "cd /usr/local/HammerDB; sed -i 's/^diset connection mysql_host.*/diset connection mysql_host ${hostnm}/' runtest${ctr}_mariadb.tcl"
-				ssh root@${hostnm} "cd /usr/local/HammerDB; sed -i 's/^vuset.*/vuset vu ${uc}/' runtest${ctr}_mariadb.tcl"
-				ssh root@${hostnm} "cd /usr/local/HammerDB; nohup ./hammerdbcli auto runtest${ctr}_mariadb.tcl > test_CNV_mariadb_${rundt}_${numhosts}pod_pod${ctr}_${uc}.out 2>&1 " &
+				ssh root@${hostnm} "cd $hmd_dir; cp runtest_mariadb.tcl runtest${ctr}_mariadb.tcl"
+				ssh root@${hostnm} "cd $hmd_dir; sed -i 's/^diset connection mysql_host.*/diset connection mysql_host ${hostnm}/' runtest${ctr}_mariadb.tcl"
+				ssh root@${hostnm} "cd $hmd_dir; sed -i 's/^vuset.*/vuset vu ${uc}/' runtest${ctr}_mariadb.tcl"
+				ssh root@${hostnm} "cd $hmd_dir; nohup ${hmd_dir}/hammerdbcli auto runtest${ctr}_mariadb.tcl > test_CNV_mariadb_${rundt}_${numhosts}pod_pod${ctr}_${uc}.out 2>&1 " &
 				export outputfname=test_CNV_mariadb_${rundt}_${numhosts}pod_pod${ctr}_${uc}.out
 			fi
 			if [[ $test_to_run == "mssql" ]]; then
-				ssh root@${hostnm} "cd /usr/local/HammerDB; cp runtest_mssql.tcl runtest${ctr}_mssql.tcl"
-				ssh root@${hostnm} "cd /usr/local/HammerDB; sed -i 's/^diset tpcc mssqls_count_ware.*/diset tpcc mssqls_count_ware ${whc}/' runtest${ctr}_mssql.tcl"
-				ssh root@${hostnm} "cd /usr/local/HammerDB; sed -i 's/^vuset.*/vuset vu ${uc}/' runtest${ctr}_mssql.tcl"
-				ssh root@${hostnm} "cd /usr/local/HammerDB; nohup ./hammerdbcli auto runtest${ctr}_mssql.tcl > test_RHV_mssql_${rundt}_${numhosts}VM_VM${ctr}_${uc}.out 2>&1 " &
+				ssh root@${hostnm} "cd $hmd_dir; cp runtest_mssql.tcl runtest${ctr}_mssql.tcl"
+				ssh root@${hostnm} "cd $hmd_dir; sed -i 's/^diset tpcc mssqls_count_ware.*/diset tpcc mssqls_count_ware ${whc}/' runtest${ctr}_mssql.tcl"
+				ssh root@${hostnm} "cd $hmd_dir; sed -i 's/^vuset.*/vuset vu ${uc}/' runtest${ctr}_mssql.tcl"
+				ssh root@${hostnm} "cd $hmd_dir; nohup ${hmd_dir}/hammerdbcli auto runtest${ctr}_mssql.tcl > test_RHV_mssql_${rundt}_${numhosts}VM_VM${ctr}_${uc}.out 2>&1 " &
 				export outputfname=test_RHV_mssql_${rundt}_${numhosts}VM_VM${ctr}_${uc}.out
 			fi
 			if [[ $test_to_run == "postgres" ]]; then
 				export hostnm
-				ssh root@${hostnm} "cd /usr/local/HammerDB; cp runtest_pg.tcl runtest${ctr}_pg.tcl"
-				ssh root@${hostnm} "cd /usr/local/HammerDB; sed -i 's/^diset connection pg_host.*/diset connection pg_host ${hostnm}/' runtest${ctr}_pg.tcl"
-				ssh root@${hostnm} "cd /usr/local/HammerDB; sed -i 's/^vuset.*/vuset vu ${uc}/' runtest${ctr}_pg.tcl"
-				ssh root@${hostnm} "cd /usr/local/HammerDB; nohup ./hammerdbcli auto runtest${ctr}_pg.tcl > test_ESX_pg_${rundt}_${numhosts}pod_pod${ctr}_${uc}.out 2>&1 " &
+				ssh root@${hostnm} "cd $hmd_dir; cp runtest_pg.tcl runtest${ctr}_pg.tcl"
+				ssh root@${hostnm} "cd $hmd_dir; sed -i 's/^diset connection pg_host.*/diset connection pg_host ${hostnm}/' runtest${ctr}_pg.tcl"
+				ssh root@${hostnm} "cd $hmd_dir; sed -i 's/^vuset.*/vuset vu ${uc}/' runtest${ctr}_pg.tcl"
+				ssh root@${hostnm} "cd $hmd_dir; nohup ${hmd_dir}/hammerdbcli auto runtest${ctr}_pg.tcl > test_ESX_pg_${rundt}_${numhosts}pod_pod${ctr}_${uc}.out 2>&1 " &
 				export outputfname=test_ESX_pg_${rundt}_${numhosts}pod_pod${ctr}_${uc}.out
 				ctr=$((ctr + 1))
 				export ctr
@@ -197,7 +197,7 @@ run_hammerdb_users()
 			sed -i "s/^diset connection mysql_host.*/diset connection mysql_host ${hostnm}/" runtest${ctr}_mariadb.tcl
 			sed -i "s/^vuset.*/vuset vu ${uc}/" runtest${ctr}_mariadb.tcl
 			export outputfname=$out_file
-			./hammerdbcli auto runtest${ctr}_mariadb.tcl > $out_file 2>&1 
+			${hmd_dir}/hammerdbcli auto runtest${ctr}_mariadb.tcl > $out_file 2>&1 
 		fi
 		if [[ $test_to_run == "mssql" ]]; then
 			export whc
@@ -211,7 +211,7 @@ run_hammerdb_users()
  			sed -i "s/^diset tpcc mssqls_count_ware.*/diset tpcc mssqls_count_ware ${whc}/" runtest${ctr}_mssql.tcl
 			sed -i "s/^vuset.*/vuset vu ${uc}/" runtest${ctr}_mssql.tcl
 			export outputfname=$out_file
-			./hammerdbcli auto runtest${ctr}_mssql.tcl > $out_file 2>&1
+			${hmd_dir}/hammerdbcli auto runtest${ctr}_mssql.tcl > $out_file 2>&1
 			echo "${uc} User run done"
 		fi
 		if [[ $test_to_run == "postgres" ]]; then
@@ -224,7 +224,7 @@ run_hammerdb_users()
 	       		sed -i "s/^vuset.*/vuset vu ${uc}/" runtest${ctr}_pg.tcl
 			out_file="test_pg_${rundt}_${numhosts}pod_pod1_${uc}.out"
 			export outputfname=$out_file
-	       		./hammerdbcli auto runtest${ctr}_pg.tcl > $out_file 2>&1
+	       		${hmd_dir}/hammerdbcli auto runtest${ctr}_pg.tcl > $out_file 2>&1
 		fi
 		end_time=$(retrieve_time_stamp)
 		connections=`grep "Active Virtual Users configured" $out_file | cut -d: -f 2 | cut -d' ' -f 1`
@@ -314,10 +314,10 @@ mariadb_install()
 		do
 			export hostnm
 			ssh root@${hostnm} "mysql -p100yard- -e 'drop database tpcc;'"
-			ssh root@${hostnm} "cd /usr/local/HammerDB; cp build_mariadb.tcl build${ctr}_mariadb.tcl"
-			ssh root@${hostnm} "cd /usr/local/HammerDB; sed -i 's/^diset connection mysql_host.*/diset connection mysql_host ${hostnm}/' build${ctr}_mariadb.tcl"
-			ssh root@${hostnm} "cd /usr/local/HammerDB; sed -i 's/^diset tpcc mysql_count_ware.*/diset tpcc mysql_count_ware ${whc}/' build${ctr}_mariadb.tcl"
-			ssh root@${hostnm} "cd /usr/local/HammerDB; nohup ./hammerdbcli auto build${ctr}_mariadb.tcl > build_mariadb_pod${ctr}.out 2>&1 " &
+			ssh root@${hostnm} "cd $hmd_dir; cp build_mariadb.tcl build${ctr}_mariadb.tcl"
+			ssh root@${hostnm} "cd $hmd_dir; sed -i 's/^diset connection mysql_host.*/diset connection mysql_host ${hostnm}/' build${ctr}_mariadb.tcl"
+			ssh root@${hostnm} "cd $hmd_dir; sed -i 's/^diset tpcc mysql_count_ware.*/diset tpcc mysql_count_ware ${whc}/' build${ctr}_mariadb.tcl"
+			ssh root@${hostnm} "cd $hmd_dir; nohup ${hmd_dir}/hammerdbcli auto build${ctr}_mariadb.tcl > build_mariadb_pod${ctr}.out 2>&1 " &
    			numhosts=${ctr}
 			ctr=$((ctr + 1))
 		done
@@ -330,11 +330,11 @@ mariadb_install()
 		# Set it up, and build the dbase
 		#
 		mysql -p100yard- -e 'drop database tpcc;'
-		cd /usr/local/HammerDB
+		cd $hmd_dir
        		cp build_mariadb.tcl build${ctr}_mariadb.tcl
 		sed -i "s/^diset connection mysql_host.*/diset connection mysql_host ${hostnm}/" build${ctr}_mariadb.tcl
 		sed -i "s/^diset tpcc mysql_count_ware.*/diset tpcc mysql_count_ware ${whc}/" build${ctr}_mariadb.tcl
-		./hammerdbcli auto build${ctr}_mariadb.tcl > build_mariadb_pod${ctr}.out 2>&1
+		${hmd_dir}/hammerdbcli auto build${ctr}_mariadb.tcl > build_mariadb_pod${ctr}.out 2>&1
 	fi
 }
 
@@ -357,18 +357,18 @@ mssql_build()
 		export $ctr1
 		for hostnm in ${dbhosts}
 		do
-			ssh root@${hostnm} "cd /usr/local/HammerDB; cp build_mssql.tcl build${ctr}_mssql.tcl"
-			ssh root@${hostnm} "cd /usr/local/HammerDB; sed -i 's/^diset tpcc mssqls_count_ware.*/diset tpcc mssqls_count_ware ${whc}/' build${ctr}_mssql.tcl"
-			ssh root@${hostnm} "cd /usr/local/HammerDB; nohup ./hammerdbcli auto build${ctr}_mssql.tcl > build_mssql${ctr}.out 2>&1 " &
+			ssh root@${hostnm} "cd $hmd_dir; cp build_mssql.tcl build${ctr}_mssql.tcl"
+			ssh root@${hostnm} "cd $hmd_dir; sed -i 's/^diset tpcc mssqls_count_ware.*/diset tpcc mssqls_count_ware ${whc}/' build${ctr}_mssql.tcl"
+			ssh root@${hostnm} "cd $hmd_dir; nohup ${hmd_dir}/hammerdbcli auto build${ctr}_mssql.tcl > build_mssql${ctr}.out 2>&1 " &
 			numhosts=${ctr}
 			ctr=$((ctr + 1))
 		done
 		wait
 	else
-		cd /usr/local/HammerDB
+		cd $hmd_dir
 		cp build_mssql.tcl build${ctr}_mssql.tcl
 		sed -i "s/^diset tpcc mssqls_count_ware.*/diset tpcc mssqls_count_ware ${whc}/" build${ctr}_mssql.tcl
-	 	./hammerdbcli auto build${ctr}_mssql.tcl > build_mssql${ctr}.out 2>&1
+	 	${hmd_dir}/hammerdbcli auto build${ctr}_mssql.tcl > build_mssql${ctr}.out 2>&1
 	fi
 }
 
@@ -401,9 +401,9 @@ postgres_build()
 			ssh root@${hostnm} "echo 'DROP DATABASE tpcc;' > input"
 			ssh root@${hostnm} "echo 'DROP ROLE tpcc;' >> input"
 			ssh root@${hostnm} "/usr/bin/psql -U postgres -d postgres -h ${hostnm} -f input"
-			ssh root@${hostnm} "cd /usr/local/HammerDB; cp build_pg.tcl build${ctr}_pg.tcl"
-			ssh root@${hostnm} "cd /usr/local/HammerDB; sed -i 's/^diset connection pg_host.*/diset connection pg_host ${hostnm}/' build${ctr}_pg.tcl"
-			ssh root@${hostnm} "cd /usr/local/HammerDB; nohup ./hammerdbcli auto build${ctr}_pg.tcl > build_pg${ctr}.out 2>&1 " &
+			ssh root@${hostnm} "cd $hmd_dir; cp build_pg.tcl build${ctr}_pg.tcl"
+			ssh root@${hostnm} "cd $hmd_dir; sed -i 's/^diset connection pg_host.*/diset connection pg_host ${hostnm}/' build${ctr}_pg.tcl"
+			ssh root@${hostnm} "cd $hmd_dir; nohup ${hmd_dir}/hammerdbcli auto build${ctr}_pg.tcl > build_pg${ctr}.out 2>&1 " &
    			numhosts=${ctr}
 			ctr=$((ctr + 1))
 		done
@@ -412,10 +412,10 @@ postgres_build()
 		echo 'DROP DATABASE tpcc;' > input
 		echo 'DROP ROLE tpcc;' >> input
 		/usr/bin/psql -U postgres -d postgres -h "localhost" -f input
-		cd /usr/local/HammerDB
+		cd $hmd_dir
 		cp build_pg.tcl build${ctr}_pg.tcl
 		sed -i "s/^diset connection pg_host.*/diset connection pg_host ${hostnm}/" build${ctr}_pg.tcl
-       		./hammerdbcli auto build${ctr}_pg.tcl > build_pg${ctr}.out 2>&1
+       		${hmd_dir}/hammerdbcli auto build${ctr}_pg.tcl > build_pg${ctr}.out 2>&1
 		ctr=$((ctr + 1))
 	fi
 	echo "Build done"

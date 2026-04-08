@@ -21,7 +21,7 @@
 # Script to set the system up for running hammerdb.
 #
 source ${TOOLS_BIN}/error_codes
-uploads="/uploads"
+source ${TOOLS_BIN}/helpers.inc
 disks=none
 mountpoint=none
 db_type=none
@@ -29,14 +29,22 @@ log_mount_point="none"
 
 install_mssql()
 {
-	cp /tmp/hammerdb-tpcc/mssql/mssql-repo-2019.repo /etc/yum.repos.d
-	yum -y install mssql-server
-	curl https://packages.microsoft.com/config/rhel/7/prod.repo > /etc/yum.repos.d/msprod.repo
-	yum -y remove unixODBC-utf16 unixODBC-utf16-devel
+	wget https://packages.microsoft.com/config/rhel/9.0/mssql-server-2022.repo
+	mv mssql-server-2022.repo /etc/yum.repos.d
+	curl https://packages.microsoft.com/config/rhel/9/prod.repo | tee /etc/yum.repos.d/mssql-release.repo
+	dnf clean all
+	dnf -y makecache
+	#
+	# These are from repos we just defined, so it will work fine with private amis.
+	# It does require a valid network connection to the outside world.
+	# 
+	dnf -y install mssql-server
+	dnf -y mssql-tools
+	echo done installing mssql-server/mssql-tools
 	ACCEPT_EULA=Y yum install -y mssql-tools unixODBC-devel
 	echo 'export PATH="$PATH:/opt/mssql-tools/bin"' >> ~/.bash_profile
-	cd /usr/local/HammerDB
-	cp -R  /tmp/hammerdb-tpcc/mssql/* .
+	cd $hmd_dir
+	cp -R  ${script_dir}/hammerdb_scripts/mssql/* .
 
 
 	rm -rf ${mountpoint}/mssql_data/*
@@ -73,7 +81,7 @@ install_mssql()
 	systemctl disable mssql-server.service
 	systemctl restart mssql-server.service
 
-	cd /usr/local/HammerDB
+	cd $hmd_dir
 
 	./createdb_mssql_mnt.sh -m ${mountpoint} > crdb.out 2>&1
 
@@ -82,7 +90,7 @@ install_mssql()
 
 install_packages()
 {
-	${TOOLS_BIN}/package_tool --wrapper_config ${run_dir}/${1} --no_packages $to_no_pkg_install
+	package_tool --wrapper_config ${run_dir}/${1} --no_packages $to_no_pkg_install
 	prtc=$?
 	if [[ $prtc -ne 0 ]]; then
 		echo Package installation of ${1}, using ${TOOLS_BIN}/package_tool was unsuccessful.
@@ -96,8 +104,8 @@ install_mariadb()
 	#
 	# Configure things in and mount the appropriate item.
 	#
-	cd /usr/local/HammerDB
-	cp -R  /tmp/hammerdb-tpcc/mariadb/* .
+	cd $hmd_dir
+	cp -R ${script_dir}/hammerdb_scripts/mariadb/* .
 
 	#
 	# Clean up any residual stuff and set up the directories
@@ -152,8 +160,8 @@ install_postgres()
 	#
 	install_packages hammerdb_postgres.json
 
-	cd /usr/local/HammerDB
-	cp -R /tmp/hammerdb-tpcc/postgres/* .
+	cd $hmd_dir
+	cp -R ${script_dir}/hammerdb_scripts/postgres/* .
 
 	rm -rf /var/lib/pgsql/data
 	rm -rf ${mountpoint}/postgres_data
@@ -245,10 +253,6 @@ do
 			db_type=$2
 			shift 2
 		;;
-		-u) 
-			uploads=$2
-			shift 2
-		;;
 		*)
 			usage;
 		;;
@@ -268,13 +272,19 @@ setenforce 0
 #
 # Install the hammerdb
 #
-cd /tmp
-tar xf ${uploads}/hammerdb-tpcc.tar
-cd /tmp/hammerdb-tpcc/Hammerdb
-unset DISPLAY
+mkdir -p $hmd_dir
+pushd  $hmd_dir > /dev/null
+echo install HammerDB-3.2-Linux-x86-64-Install
+wget https://github.com/TPC-Council/HammerDB/releases/download/v3.2/HammerDB-3.2-Linux-x86-64-Install
+if [[ $? -ne 0 ]]; then
+	echo Error: Failed to install HammerDB-3.2-Linux-x86-64-Install
+	exit $E_GENERAL
+fi
+chmod 755 HammerDB-3.2-Linux-x86-64-Install
+echo HammerDB-3.2-Linux-x86-64-Install installed.
 echo "y" > input
-echo "/usr/local/HammerDB" >> input
-./HammerDB-3.2-Linux-x86-64-Install < input
+echo "$hmd_dir" >> input 
+${hmd_dir}/HammerDB-3.2-Linux-x86-64-Install < input
 
 #
 # Shutdown all running instances

@@ -1,0 +1,9 @@
+# .bash_profile for oracle user.
+
+export ORACLE_HOME=/u01/app/oracle/product/19.0.0/dbhome_1
+
+export ORACLE_SID=tpcc
+export PATH=$PATH:/usr/kerberos/sbin:/usr/kerberos/bin:/usr/local/sbin:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin:/usr/X11R6/bin:/root/bin:$ORACLE_HOME/bin:$ORACLE_HOME/OPatch
+
+export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:$ORACLE_HOME/lib
+export PS1="\u@\h \w> "

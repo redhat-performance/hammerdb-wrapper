@@ -1,0 +1,174 @@
+Creating the Database Schema for TPCH
+=====================================
+
+Install the Postgres database bits. Get the RHEL repos by following the links for the database 
+version you want to install in the link below
+
+https://yum.postgresql.org/
+
+In this case, the rpm for the Postgres 10 database for RHEL 7 was pulled and installed on the host, followed 
+by the database bits install.
+
+For RHEL 7 (for RHEL 8 see below) - Example of postgresql 11 shown belo
+
+#yum -y install postgresql.x86_64 postgresql-contrib.x86_64 postgresql-devel.x86_64 postgresql-server.x86_64
+dnf -y install postgresql11.x86_64 postgresql11-contrib.x86_64 postgresql11-devel.x86_64 \
+postgresql11-server.x86_64 postgresql11-odbc.x86_64 postgresql11-libs.x86_64
+
+For RHEL8 - Does not need external repo (Just add the Buildroot repo)
+----------
+dnf -y install postgresql.x86_64 postgresql-contrib.x86_64 postgresql-server.x86_64
+
+
+Continue for all releases
+--------------------------
+yum -y install sysstat psmisc
+dnf -y install sysstat psmisc
+
+The Postgres software is installed under /usr/pgsql-11
+
+The default location for the Postgres database is /var/lib/pgsql/data. If you have a different drive to create
+the database, then make a directory and create a soft link to /var/lib/pgsql/data
+
+mkdir /perf1/postgres_data
+chmod 700 /perf1/postgres_data
+chown -R postgres:postgres /perf1/postgres_data
+#rm -rf /var/lib/pgsql/data
+
+rm -rf /var/lib/pgsql/data
+ln -sf /perf1/postgres_data /var/lib/pgsql/data
+
+
+# If you want to configure hugepages, put these lines in the file below
+
+vi  /etc/security/limits.conf
+
+postgres -   memlock unlimited
+
+# And set the appropriate number of hugepages
+
+
+Run this command to initialize the database and enable and start the service / use the 
+appropriate version command
+
+postgresql-setup initdb    ## For version shipped with RHEL
+
+/usr/pgsql-11/bin/postgresql-11-setup initdb   ##  For version installed from postgres 
+                                               ##  website (the pgsql directory can also 
+					       ##  change based on version number)
+
+Install HammerDB harness
+mkdir /shak
+mount perf1:/shak /shak
+cd /shak/HammerDB
+
+### Check and install the latest Hammerdb version. There maybe a newer version than 
+the one in the command below
+
+./HammerDB-3.2-Linux-x86-64-Install
+
+
+cd /usr/local/HammerDB-3.2/
+cp /shak/HammerDB/tpcc/postgres/* .
+
+
+# Build the postgres database and schema
+
+./build_pg_tpcc.sh -h ## To print all options
+
+# Run the workload with the following options
+
+./run_pg_tpcc.sh -h  ## To print all options.
+
+
+-----------------------------------------------------------------------------------------
+---- Steps Old Document below -----
+
+
+Copy config files to the data directory
+
+cp pg_hba.conf /var/lib/pgsql/data
+cp postgresql.conf /var/lib/pgsql/data
+
+Edit the files to put the IP address of the host where the harness is being run
+
+vi /var/lib/pgsql/11/data/pg_hba.conf /var/lib/pgsql/11/data/postgresql.conf
+vi build_pg.tcl runtest_pg.tcl
+
+Make Sure Selinux is  turned off 
+
+setenforce 0
+
+Set SELINUX=permissive in /etc/selinux/config
+
+# IF you install postres from RHEL, it will start with the command below but if you pull Postgres
+# from Postgres site, it usually requires the version number.
+# Start the database
+
+systemctl start postgresql
+systemctl enable postgresql
+
+# External version
+systemctl start postgresql-11.service
+systemctl start postgresql-11.service
+
+
+# Set the password for the postgres user
+
+psql -U postgres -d postgres
+psql (9.6.5)
+Type "help" for help.
+postgres=# alter role postgres password 'postgres';
+ALTER ROLE
+postgres=#
+
+
+#Create a database that will contain the database tables.  The command is case sensitive:
+
+
+/usr/bin/psql -U postgres -d postgres -W
+CREATE DATABASE tpcc;
+
+# IF you need to drop the database to rebuild, use the following commands
+/usr/bin/psql -U postgres -d postgres -W
+DROP DATABASE tpcc;
+DROP ROLE tpcc;
+
+# The command  to build the schema and run the workload is ./build_and_run_pg.sh
+
+# Edit the file to change the path variables and user run name and user count and then execute the file
+to build and run the workload
+
+
+Building the schema
+
+dbset db pg
+dbset bm TPC-C
+diset connection pg_host 10.16.29.191
+diset tpcc  pg_count_ware 100
+diset tpcc pg_num_vu 50
+buildschema
+
+
+Run settings
+
+dbset db pg
+dbset bm TPC-C
+diset connection pg_host 10.16.29.191
+diset tpcc pg_driver timed
+diset tpcc pg_count_ware 100
+diset tpcc pg_num_vu 10
+diset tpcc pg_rampup 2
+diset tpcc pg_duration 15
+
+loadscript
+vuset vu 20
+vurun
+
+
+Size of database based on WH count
+100WH - ~20G
+200WH - ~40G
+500WH - ~100G
+
+

@@ -1,0 +1,203 @@
+/bin/bash: 
+
+Copy the appropriate mssql repo from 
+http://perf1.perf.lab.eng.bos.redhat.com/sanjay/shak/Microsoft_benchmark_kits/repofiles/
+to /etc/yum.repos.d
+
+and install sqlserver
+yum install mssql-server
+
+
+Install the Microsoft tools 
+
+curl https://packages.microsoft.com/config/rhel/7/prod.repo > /etc/yum.repos.d/msprod.repo
+
+If you had a previous version of mssql-tools installed, remove any older unixODBC packages.
+
+yum remove unixODBC-utf16 unixODBC-utf16-devel
+
+Install the latest version
+
+yum -y install mssql-tools unixODBC-devel
+
+
+Add the tools directory to your PATH
+
+echo 'export PATH="$PATH:/opt/mssql-tools/bin"' >> ~/.bash_profile
+
+Configure and start SQL Server on your host
+cd /opt/mssql/bin/
+./mssql-conf setup
+
+This will enable the MSSQL Server and start the instance
+
+Shutdown the instance and move the database data directory
+
+systemctl stop mssql-server
+mkdir /perf1/mssql_data
+cd /var/opt/mssql
+mv data /perf1/mssql_data
+ln -sf /perf1/mssql_data/data .
+
+## For RHEL 8 install older version of Ssl for compatibility
+yum install compat-openssl10
+cd /opt/mssql/lib
+ln -s /lib64/libcrypto.so.1.0.2o libcrypto.so
+ln -s /lib64/libssl.so.1.0.2o libssl.so
+
+systemctl start mssql-server
+
+
+Install HammerDB tool
+
+mount perf1:/shak /shak
+
+cd /shak/HammerDB/
+
+### Check and install the latest Hammerdb version. There maybe a newer version than the one in the command below
+./HammerDB-3.2-Linux-x86-64-Install
+
+
+Start building the schema
+
+cd /usr/local/HammerDB-3.2/
+
+# Add more tempdb files. Usually it is one tempdb files per cpu upto 8 cpus and then 1 per 4 cpus after that
+# So edit the script appropriately and then execute it.
+
+./update_temp.sh
+
+cp /shak/HammerDB/tpcc/mssql/* .
+
+--- EDIT FILES BEFORE STARTING THE BUILD
+Edit the file mssql_settings.sh file to configure the MSSQL traceflags
+
+vi mssql_settings.sh
+
+Edit the file createdb_mssql.sh to put the database files in the proper directory
+vi createdb_mssql.sh
+
+Edit the file ./update_temp.sh to the tempdb file sin the proper directories
+vi update_temp.sh
+
+All these files are invoked by the build script so they don't have to executed separately.
+
+-------------------------
+
+Script to build the database
+./build_mssql_tpcc.sh
+
+Script to run the database
+
+
+Turn on hugepages. Edit the file and add the traceflags
+
+vi /var/opt/mssql/mssql.conf
+
+[traceflag]
+Traceflag0 = 834
+
+
+Other traceflags and writethrough options
+[control]
+Writethrough = 0
+alternatewritethrough = 0
+
+[traceflag]
+Traceflag0 = 3979
+
+
+Detailed information about the settings if you want to run the test manually
+
+./hammerdbcli
+
+Set the database and benchmark
+
+
+dbset db mssqls
+dbset bm TPC-C
+diset connection mssqls_pass 100yard-
+diset tpcc mssqls_count_ware 40
+diset tpcc mssqls_num_vu 40
+
+buildschema
+
+hammerdb>print dict
+
+Dictionary Settings for MSSQLServer
+connection {
+ mssqls_server         = (local)
+ mssqls_linux_server   = localhost
+ mssqls_tcp            = false
+ mssqls_port           = 1433
+ mssqls_azure          = false
+ mssqls_authentication = windows
+ mssqls_linux_authent  = sql
+ mssqls_odbc_driver    = ODBC Driver 13 for SQL Server
+ mssqls_linux_odbc     = ODBC Driver 17 for SQL Server
+ mssqls_uid            = sa
+ mssqls_pass           = 100yard-
+}
+tpcc       {
+ mssqls_count_ware       = 10
+ mssqls_num_vu           = 10
+ mssqls_dbase            = tpcc
+ mssqls_imdb             = false
+ mssqls_bucket           = 1
+ mssqls_durability       = SCHEMA_AND_DATA
+ mssqls_total_iterations = 1000000
+ mssqls_raiseerror       = false
+ mssqls_keyandthink      = false
+ mssqls_checkpoint       = false
+ mssqls_driver           = test
+ mssqls_rampup           = 2
+ mssqls_duration         = 5
+ mssqls_allwarehouse     = false
+ mssqls_timeprofile      = false
+}
+
+
+Set the following parameters according to the workload requirements
+dbset db mssqls
+dbset bm TPC-C
+diset tpcc mssqls_driver timed
+diset connection mssqls_pass 100yard-
+diset tpcc mssqls_count_ware 20
+diset tpcc mssqls_num_vu 20
+diset tpcc mssqls_rampup 2
+diset tpcc mssqls_duration 15
+
+buildschema
+
+To kill virtual users
+
+vudestroy
+
+To check status of virutal users
+
+vustatus
+
+If the output of print dict looks ok, load the script
+
+loadscript
+
+vurun
+
+vudestroy
+
+clearscript
+
+
+To drop tpcc database and start fresh
+/opt/mssql-tools/bin/sqlcmd -U sa -P 100yard-
+drop database tpcc
+go
+
+Query new_order table to get transactions
+use tpcc
+go
+Changed database context to 'tpcc'.
+select count(*) from new_order;
+go
+
+

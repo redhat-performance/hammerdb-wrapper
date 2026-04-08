@@ -1,0 +1,6 @@
+. bash_profile
+sqlplus '/ as sysdba' <<!
+startup pfile=p_run.ora
+exit
+!
+

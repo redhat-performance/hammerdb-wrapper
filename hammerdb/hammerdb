@@ -23,6 +23,10 @@ log_mount=""
 pcp=""
 pdir=""
 script_dir=$(realpath $(dirname $0))
+export script_dir
+hmd_dir=${script_dir}/hammerdb-tpcc/Hammerdb
+mkdir -p $hmd_dir
+export hmd_dir
 
 curdir=`pwd`
 if [[ $0 == "./"* ]]; then
@@ -289,7 +293,7 @@ if [[ $to_tuned_setting != "none" ]]; then
 	tuned_original=`tuned-adm active | cut -d' ' -f4`
 	tuned-adm profile $to_tuned_setting
 fi
-pushd /usr/local > /dev/null
+pushd $hmd_dir > /dev/null
 rm -rf $test
 popd > /dev/null
 cpdir=""
@@ -303,25 +307,13 @@ echo ./run_hammerdb -m /perf1 -t ${test} ${users_to_run} ${warehouses} ${log_mou
 chmod 755 run_this
 ./run_this
 
-cd /usr/local
-mv HammerDB $test
-
-${TOOLS_BIN}/move_data $curdir $test
-pushd $test
-files=`ls test*out`
-if [ $? -ne 0 ]; then
-	echo Failed >> test_results_report
-else
-	echo Ran >> test_results_report
-fi
-
+rm -rf $test
+mv $hmd_dir $test
 cp /tmp/hammerdb.out .
-popd
 
 tmp_file=`mktemp /tmp/hammer_data.XXXXX`
 find -L $test  -type f  -exec grep -Iq . {} \; -print > $tmp_file
-#echo "/usr/local/${test}/results_hammerdb_*.csv" >> $tmp_file
-egrep  "out|csv|report" $tmp_file | egrep -v "Hammerdb" | grep -v tcl | tar cf /tmp/results_hammerdb_${test}_${to_tuned_setting}.tar --files-from=/dev/stdin
+grep  -E "out|csv|report" $tmp_file | grep -v "Hammerdb" | grep -v tcl | tar cf /tmp/results_hammerdb_${test}_${to_tuned_setting}.tar --files-from=/dev/stdin
 csv_file=`grep  "csv" $tmp_file | grep -v "Hammerdb"`
 ${TOOLS_BIN}/csv_to_json $to_json_flags --csv_file $csv_file --output_file results_hammer.json
 $TOOLS_BIN/verify_results $to_verify_flags --schema_file $script_dir/results_schema.py --class_name Hammerdb_Results --file results_hammer.json

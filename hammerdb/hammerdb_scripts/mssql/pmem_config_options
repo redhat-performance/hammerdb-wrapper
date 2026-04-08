@@ -1,0 +1,33 @@
+The mssql.conf file /var/opt/mssql/mssql.conf should have these traceflags and writethrough
+set to 0 for pmem devices
+
+[sqlagent]
+enabled = false
+
+[EULA]
+accepteula = Y
+
+[control]
+Writethrough=0
+
+[traceflag]
+Traceflag0=3979    # Disable forced flush behaviour
+Traceflag1=7413    # 
+
+
+If you want to use hugepages, set the following traceflag and make sure transparent hugepages
+are enabled
+traceflag2 = 834
+
+mount the pmem device in dax mode
+
+Configure the xfs with 2M alignment
+=====================================
+
+mkfs.xfs -f -d su=2m,sw=1 /dev/pmem0
+mkdir /mnt/fsdax0
+mount -o dax,noatime /dev/pmem0 /mnt/fsdax0
+xfs_io -c "extsize 2m" /mnt/fsdax0
+
+
+

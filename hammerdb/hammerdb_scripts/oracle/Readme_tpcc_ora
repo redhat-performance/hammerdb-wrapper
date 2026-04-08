@@ -1,0 +1,40 @@
+Install Oracle from the kits. 
+
+Once the install is complete, install Hammerdb
+
+mount perf1:/shak /shak
+
+cd /shak/HammerDB/
+
+### Check and install the latest Hammerdb version. There maybe a newer version than the one in the command below
+./HammerDB-3.2-Linux-x86-64-Install
+
+
+cd /usr/local/HammerDB-3.0/
+chmod 777 /usr/local/HammerDB-3.0/
+
+mkdir /perf1/oracle
+chown oracle:dba /perf1/oracle
+
+
+The oracle run is done as "oracle user", so the permissions for the run directory is set to allow all run files
+to be copied by the oracle user
+
+su - oracle
+
+cp /shak/HammerDB/tpcc/oracle/* .
+
+Edit the setoraenv.sh file and make sure that the Oracle home is set properly. Execute it to set the environment
+
+. ./setoraenv.sh
+
+build the database
+./createdb_ora.sh
+
+
+./createdb_ora.sh
+
+Edit file buildora.tcl and set the warehouse count and execute buildora.sh to build the schema
+
+./buildora.sh 
+
