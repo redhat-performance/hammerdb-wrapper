@@ -135,7 +135,7 @@ install_mariadb()
 	fi
 	sed -i "/innodb_file_per_table/a innodb_log_group_home_dir = ${log_mount_point}\/mysql\/log" my.cnf
 
-	/usr/bin/cp /my.cnf /etc/my.cnf
+	/usr/bin/cp my.cnf /etc/my.cnf
 
 	systemctl restart mariadb.service
 
@@ -280,7 +280,6 @@ if [[ $? -ne 0 ]]; then
 fi
 chmod 755 HammerDB-3.2-Linux-x86-64-Install
 echo HammerDB-3.2-Linux-x86-64-Install installed.
-popd > /dev/null
 echo "y" > input
 echo "$hmd_dir" >> input 
 ${hmd_dir}/HammerDB-3.2-Linux-x86-64-Install < input

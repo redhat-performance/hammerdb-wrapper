@@ -24,6 +24,7 @@ pcp=""
 pdir=""
 script_dir=$(realpath $(dirname $0))
 export script_dir
+hmd_dir=${script_dir}/hammerdb-tpcc/Hammerdb
 mkdir -p $hmd_dir
 export hmd_dir
 
@@ -132,7 +133,8 @@ usage()
 
 ${TOOLS_BIN}/gather_data ${curdir}
 source ${TOOLS_BIN}/general_setup "$@"
-export to_no_pkg_install
+export to_pkg_tool_flags
+
 
 unset DISPLAY
 users_to_run=""
