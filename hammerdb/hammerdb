@@ -134,9 +134,9 @@ usage()
 ${TOOLS_BIN}/gather_data ${curdir}
 source ${TOOLS_BIN}/general_setup "$@"
 export to_pkg_tool_flags
+export to_no_pkg_install
 
-
-unset DISPLAY
+unse DISPLAY
 users_to_run=""
 test="none"
 

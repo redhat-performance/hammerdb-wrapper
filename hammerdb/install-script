@@ -35,7 +35,7 @@ install_mssql()
 	dnf clean all
 	dnf -y makecache
 	dnf -y install mssql-server
-	dnf -y mssql-tools
+	dnf -y install mssql-tools
 #	curl https://packages.microsoft.com/config/rhel/7/prod.repo > /etc/yum.repos.d/msprod.repo
 	echo done installing mssql-server/mssql-tools
 #	yum -y remove unixODBC-utf16 unixODBC-utf16-devel
