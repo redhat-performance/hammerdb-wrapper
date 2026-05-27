@@ -33,13 +33,18 @@ install_mssql()
 	mv mssql-server-2022.repo /etc/yum.repos.d
 	curl https://packages.microsoft.com/config/rhel/9/prod.repo | tee /etc/yum.repos.d/mssql-release.repo
 	dnf clean all
+	echo here 1
 	dnf -y makecache
 	dnf -y install mssql-server
-	dnf -y install mssql-tools
+E	echo YES > YES
+#	dnf -y install mssql-tools < `cat YES`
+	echo here 2
 #	curl https://packages.microsoft.com/config/rhel/7/prod.repo > /etc/yum.repos.d/msprod.repo
 	echo done installing mssql-server/mssql-tools
 #	yum -y remove unixODBC-utf16 unixODBC-utf16-devel
+	echo here 3
 	ACCEPT_EULA=Y yum install -y mssql-tools unixODBC-devel
+	echo here 4
 	echo 'export PATH="$PATH:/opt/mssql-tools/bin"' >> ~/.bash_profile
 	cd $hmd_dir
 	cp -R  ${script_dir}/hammerdb_scripts/mssql/* .

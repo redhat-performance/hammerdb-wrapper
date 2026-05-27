@@ -19,7 +19,6 @@ usage()
 	-t runlength in minutes ( Default "15" ) 
 	-w warehouse count  ( Default "500" )
 	-s storage type  ( Default "Storage not specified" )
-        -n Test Name  (Default "HDB_tpcc_mssql" ) 
         
        Examples: 
         nrunoastoltp150.sh -u "10 20 30"

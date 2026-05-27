@@ -20,7 +20,6 @@ usage()
         -t runlength in minutes (Default - 15 minutes)
         -w warehouse count (Default - 500 warehouses - MAKE SURE THIS MATCHES BUILD WAREHOUSE COUNT)
         -s storage type ( Default - "Storage no specified")
-        -n name for the run (Default - "HDB_tpcc_postgres")
 
        Examples:
         ./run_pg_tpcc.sh -u "10 20 30"
@@ -48,9 +47,6 @@ case $1 in
             shift 2
             ;;
         -t) RUNLENGTH=$2
-            shift 2
-            ;;
-        -n) Testname=$2
             shift 2
             ;;
          *) usage;

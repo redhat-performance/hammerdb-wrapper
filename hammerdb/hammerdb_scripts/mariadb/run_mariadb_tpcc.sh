@@ -23,7 +23,6 @@ usage()
         -t runlength in minutes (Default - 15 minuteS)
         -w warehouse count (Default - 500 )
         -s storage type ( Default - "Storage not speficied" )
-        -n name for the run (Default - "HDB_tpcc_mariadb" )
 
        Examples:
         nrunoastoltp150.sh -u "10 20 30"
@@ -51,9 +50,6 @@ case $1 in
             shift 2
             ;;
         -t) RUNLENGTH=$2
-            shift 2
-            ;;
-        -n) Testname=$2
             shift 2
             ;;
         *) usage;
