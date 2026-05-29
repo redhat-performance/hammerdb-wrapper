@@ -8,7 +8,6 @@ export LD_LIBRARY_PATH
 storagetype="Storage not specified"
 Usercount="10 20 40 80 100"
 whc="500"
-#benchmark_results_dir=`pwd`"/results"
 DBRESTARTUP="n"
 Testname="HDB_tpcc_mariadb"
 
@@ -25,11 +24,11 @@ usage()
         -s storage type ( Default - "Storage not speficied" )
 
        Examples:
-        nrunoastoltp150.sh -u "10 20 30"
+        run_mariadb_tpcc.sh -u "10 20 30"
             Do runs with 10, 20 and 30 users
-        nrunoastoltp150.sh -s "nvme"
+        run_mariadb_tpcc.sh -s "nvme"
             Do a 10 user, 500 warehouse, 15 minute run with storage type as "nvme"
-        nrunoastoltp150.sh -w 1000 -u "10 20 40 80 100" -s "iscsi"
+        run_mariadb_tpcc.sh -w 1000 -u "10 20 40 80 100" -s "iscsi"
             Do a 1000 warehouse run with 10 20 40 80 and 100 users and storage type specified as iscsi
   "
 }
@@ -79,21 +78,14 @@ fi
 ## Collecting system information
 benchmark_name="Hammerdb-tpcc"
 benchmark_ver="HammerDB-3.2"
-#echo ${benchmark_name} ${benchmark_ver} > ${benchmark_run_dir}/user-benchmark-name.txt
 hostnm=`hostname -f`
 hostip=`hostname -i`
 numcpu=`nproc`
 totmem=`cat /proc/meminfo |grep "MemTotal:" | awk '{print $2}'`
 krel=`uname -r`      ## Kernel
 
-## Stop and start the mariadb server and drop and create the database
-#systemctl restart mariadb.service
-#echo "Restarted DB"
-#sleep 60
-
 
 # Set Host IP and Warehouse Count in the tcl file
-#sed -i "s/^diset connection mysql_host.*/diset connection mysql_host ${hostip}/" runtest_mariadb.tcl
 sed -i "s/^diset tpcc mysql_count_ware.*/diset tpcc mysql_count_ware ${whc}/" runtest_mariadb.tcl
 
 echo "StartTime,EndTime,Hostname,Kernel,Database,DBVer,Cpus,Memory,StorageType,Users,Tpm" > user-benchmark-result.csv
