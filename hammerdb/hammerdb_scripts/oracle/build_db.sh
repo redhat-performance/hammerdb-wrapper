@@ -1,4 +1,4 @@
-/opt/mssql-tools/bin/sqlcmd -U sa -P 100yard- <<EOT 
+/opt/mssql-tools/bin/sqlcmd -U sa -P abcdefgh <<EOT 
 
 drop database tpcc
 go

@@ -14,7 +14,7 @@ if {!$complete} {after 5000  wait_to_complete} else { exit }
 dbset db mssqls
 dbset bm TPC-C
 diset connection mssqls_linux_server 127.0.0.1
-diset connection mssqls_pass 100yard-
+diset connection mssqls_pass abcdefgh
 diset tpcc mssqls_count_ware 500
 diset tpcc mssqls_num_vu 40
 

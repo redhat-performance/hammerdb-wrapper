@@ -1,5 +1,5 @@
 # Create database files
-/opt/mssql-tools/bin/sqlcmd -U sa -P 100yard- <<! 
+/opt/mssql-tools/bin/sqlcmd -U sa -P abcdefgh <<! 
 drop database tpcc
 go
 CREATE DATABASE tpcc

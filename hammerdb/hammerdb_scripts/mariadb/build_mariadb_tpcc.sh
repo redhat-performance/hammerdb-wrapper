@@ -76,7 +76,7 @@ sleep 60
 
 
 echo "Dropping database tpcc"
-mysql -p100yard- -e 'drop database tpcc;'
+mysql -pabcdefgh -e 'drop database tpcc;'
 
 echo "Building ${whc} warehouses with ${Usercount} users"
 sed -i "s/^diset connection mysql_host.*/diset connection mysql_host ${hostip}/" build_mariadb.tcl

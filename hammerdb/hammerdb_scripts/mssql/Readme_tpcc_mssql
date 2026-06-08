@@ -116,7 +116,7 @@ Set the database and benchmark
 
 dbset db mssqls
 dbset bm TPC-C
-diset connection mssqls_pass 100yard-
+diset connection mssqls_pass abcdefgh
 diset tpcc mssqls_count_ware 40
 diset tpcc mssqls_num_vu 40
 
@@ -136,7 +136,7 @@ connection {
  mssqls_odbc_driver    = ODBC Driver 13 for SQL Server
  mssqls_linux_odbc     = ODBC Driver 17 for SQL Server
  mssqls_uid            = sa
- mssqls_pass           = 100yard-
+ mssqls_pass           = abcdefgh
 }
 tpcc       {
  mssqls_count_ware       = 10
@@ -161,7 +161,7 @@ Set the following parameters according to the workload requirements
 dbset db mssqls
 dbset bm TPC-C
 diset tpcc mssqls_driver timed
-diset connection mssqls_pass 100yard-
+diset connection mssqls_pass abcdefgh
 diset tpcc mssqls_count_ware 20
 diset tpcc mssqls_num_vu 20
 diset tpcc mssqls_rampup 2
@@ -189,7 +189,7 @@ clearscript
 
 
 To drop tpcc database and start fresh
-/opt/mssql-tools/bin/sqlcmd -U sa -P 100yard-
+/opt/mssql-tools/bin/sqlcmd -U sa -P abcdefgh
 drop database tpcc
 go
 
