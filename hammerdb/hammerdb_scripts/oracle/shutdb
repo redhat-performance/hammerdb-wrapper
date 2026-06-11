@@ -1,6 +1,0 @@
-. bash_profile
-sqlplus '/ as sysdba' <<!
-shutdown immediate;
-exit
-!
-
