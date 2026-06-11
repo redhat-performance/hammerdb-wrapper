@@ -1,3 +1,10 @@
+#!/bin/bash
+
+#
+# If a command fails, exit the script with that error code.
+#
+set -e
+
 while [ $# -gt 0 ]
 do
 case $1 in
