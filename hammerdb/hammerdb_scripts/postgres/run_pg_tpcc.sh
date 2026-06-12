@@ -89,7 +89,7 @@ Testname="HDB_tpcc_pg"
 sed -i "s/^diset connection pg_host.*/diset connection pg_host ${hostip}/" runtest_pg.tcl
 sed -i "s/^diset tpcc pg_count_ware.*/diset tpcc pg_count_ware ${whc}/" runtest_pg.tcl
 
-echo "StartTime,EndTime,Hostname,Kernel,Database,DBVer,Cpus,Memory,StorageType,Users,Tpm" > Run_mariadb_tpm.csv
+echo "StartTime,EndTime,Hostname,Kernel,Database,DBVer,Cpus,Memory,StorageType,Users,Tpm" > user-benchmark-result.csv
 pgver=`psql --version |awk '{print $3}'`
 
 ## Run the database workload with different user count
@@ -109,7 +109,7 @@ do
     tpm=`grep TPM test_pg_${Testname}_${uc}.out | awk '{print $7}'`
     echo "\"${starttime}\",\"${endtime}\",\"${hostnm}\",\"${krel}\",\"Postgres\",\"${pgver}\",\"${numcpu}\",\"${totmem}\",\"${storagetype}\",\"${uc}\",\"${tpm}\"" >> user-benchmark-result.csv
     cp user-benchmark-result.csv $benchmark_results_dir
-    cp /etc/my.cnf $benchmark_results_dir
+    cp /var/lib//pgsql/data/postgresql.conf $benchmark_results_dir
     cp test_pg_${Testname}_${uc}.out $benchmark_results_dir
 done
 
