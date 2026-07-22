@@ -14,7 +14,7 @@ dbset db mysql
 dbset bm TPC-C
 diset connection mysql_host 127.0.0.1
 diset connection mysql_port 3306
-diset tpcc mysql_pass mysql
+diset tpcc mysql_pass abcdefgh
 diset tpcc mysql_count_ware 500
 diset tpcc mysql_driver timed
 diset tpcc mysql_rampup 2

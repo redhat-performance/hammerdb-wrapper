@@ -3,7 +3,7 @@
 ## Defining variables
 PATH=/opt/mssql-tools/bin:$PATH
 storagetype="Storage not specified"
-Usercount="10 20 30 40 50"
+Usercount="10 20 40 80 100"
 whc="500"
 benchmark_results_dir=`pwd`"/results"
 DBRESTARTUP="n"
