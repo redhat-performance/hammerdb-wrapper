@@ -67,10 +67,6 @@ then
 benchmark_run_dir=`pwd`"/results"
 fi
 
-echo ${storagetype}
-echo ${Usercount}
-echo ${benchmark_results_dir}
-echo ${whc}
 
 ## Set variables for the run
 

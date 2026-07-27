@@ -109,7 +109,7 @@ do
     tpm=`grep TPM test_pg_${Testname}_${uc}.out | awk '{print $7}'`
     echo "\"${starttime}\",\"${endtime}\",\"${hostnm}\",\"${krel}\",\"Postgres\",\"${pgver}\",\"${numcpu}\",\"${totmem}\",\"${storagetype}\",\"${uc}\",\"${tpm}\"" >> user-benchmark-result.csv
     cp user-benchmark-result.csv $benchmark_results_dir
-    cp /var/lib//pgsql/data/postgresql.conf $benchmark_results_dir
+    cp /etc/my.cnf $benchmark_results_dir
     mv test_pg_${Testname}_${uc}.out $benchmark_results_dir
 done
 
