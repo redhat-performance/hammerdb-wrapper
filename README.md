@@ -95,9 +95,9 @@ The wrapper consists of two scripts: `hammerdb` (entry point) and `run_hammerdb`
    - Restores the original profile after the test completes.
 
 5. **HammerDB Installation**:
-   - The `install-script` extracts the HammerDB kit from `~/uploads/hammerdb-tpcc.tar`.
-   - Installs HammerDB 3.2 to `/usr/local/HammerDB` using the non-interactive installer.
-   - Copies database-specific TCL scripts (build and run scripts) from the extracted kit.
+   - The `install-script` downloads the official HammerDB 3.2 Linux x86-64 installer directly from the [TPC-Council HammerDB GitHub releases](https://github.com/TPC-Council/HammerDB/releases/download/v3.2/HammerDB-3.2-Linux-x86-64-Install) — no manual upload or kit archive is required.
+   - Runs the non-interactive installer into a working directory (`hammerdb/hammerdb-tpcc/Hammerdb`) under the repo checkout.
+   - Copies the database-specific TCL scripts and config files already included in this repo, from `hammerdb_scripts/<db>/` (build and run scripts for MariaDB, PostgreSQL, and MSSQL).
    - For remote deployments: copies `install-script` to each remote host via SCP and executes it remotely.
 
 6. **Database Installation and Configuration**:
@@ -148,14 +148,14 @@ The wrapper consists of two scripts: `hammerdb` (entry point) and `run_hammerdb`
     - Saves raw HammerDB output files, processed CSV/JSON, and test status.
     - Optionally saves PCP performance data.
     - Archives results to configured storage location via `save_results`.
-    - Moves HammerDB installation to `/usr/local/<db>` for preservation.
+    - Renames the HammerDB working directory to `<db>` (e.g. `mariadb`, `postgres`, `mssql`) within the run directory for preservation.
     - Restores the original tuned profile if changed.
     - Re-enables SELinux (`setenforce 1`).
     - Deletes the LVM volume group and unmounts `/perf1`.
 
 ## Dependencies
 
-**Location of underlying workload**: HammerDB is a licensed/free benchmark. You must upload the HammerDB TPC-C kit archive (`hammerdb-tpcc.tar`) to `~/uploads`. This archive contains the HammerDB 3.2 installer and database-specific TCL scripts (build and run scripts for MariaDB, PostgreSQL, and MSSQL).
+**Location of underlying workload**: HammerDB is a free benchmark. No manual download or upload is required — `install-script` automatically downloads the official HammerDB 3.2 Linux x86-64 installer from the [TPC-Council HammerDB releases](https://github.com/TPC-Council/HammerDB/releases) at run time. The database-specific TCL scripts and config files (build and run scripts, and configs for MariaDB, PostgreSQL, and MSSQL) are included directly in this repo under `hammerdb/hammerdb_scripts/`.
 
 **Base packages required** (RHEL only): lvm2, sysstat, bc, git, unzip, zip
 
@@ -168,9 +168,6 @@ The wrapper consists of two scripts: `hammerdb` (entry point) and `run_hammerdb`
 
 To run:
 ```bash
-# Upload the HammerDB TPC-C kit first
-cp hammerdb-tpcc.tar ~/uploads/
-
 # Clone and run
 git clone https://github.com/redhat-performance/hammerdb-wrapper
 cd hammerdb-wrapper/hammerdb
@@ -335,10 +332,9 @@ A non-zero return code from `verify_results` indicates that the output data did 
 
 ## Notes
 
-### Licensed/Kit Requirements
-The HammerDB TPC-C kit (`hammerdb-tpcc.tar`) must be uploaded to `~/uploads` before running. This archive contains:
-- HammerDB 3.2 Linux x86-64 installer.
-- Database-specific TCL scripts for schema build and test execution.
+### HammerDB Installer
+No manual kit upload is required. `install-script` downloads the HammerDB 3.2 Linux x86-64 installer directly from the TPC-Council GitHub releases at run time. The following are already included in this repo:
+- Database-specific TCL scripts for schema build and test execution (`hammerdb_scripts/<db>/build_*.tcl`, `runtest_*.tcl`).
 - Database-specific configuration files (e.g., `my.cnf` for MariaDB, `postgresql.conf` for PostgreSQL).
 
 ### Platform Support
@@ -374,7 +370,7 @@ The `run_hammerdb` script supports running against remote database hosts via the
 - If LVM creation fails, verify the specified disks are not in use or mounted.
 - If the database fails to start, check the build output files (`build_<db>_*.out`) for errors.
 - If TPM is 0 or very low, verify the database schema was built successfully and the database service is running.
-- If HammerDB is not found, verify `hammerdb-tpcc.tar` is present in `~/uploads`.
+- If HammerDB is not found, verify `install-script` was able to download the installer from the TPC-Council GitHub releases (check network/proxy access) and that `hammerdb_scripts/<db>/` files are present in the repo checkout.
 - If package installation fails, verify the system has access to the required repositories (especially Microsoft's repo for MSSQL).
 - Use `--use_pcp` to collect detailed performance counters for analysis.
 - The full script execution log is saved to `hammerdb.out` in the results directory.
