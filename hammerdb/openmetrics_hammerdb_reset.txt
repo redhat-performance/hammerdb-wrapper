@@ -1,0 +1,10 @@
+iteration NaN
+running NaN
+numthread NaN
+runtime NaN
+throughput NaN
+mariadb NaN
+postgres NaN
+mssql NaN
+connections NaN
+TPM NaN

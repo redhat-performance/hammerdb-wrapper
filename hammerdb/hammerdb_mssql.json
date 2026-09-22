@@ -1,0 +1,15 @@
+{
+    "dependencies": {
+        "rhel": [
+            "mssql-server",
+            "unixODBC-devel",
+            "gdb",
+            "cyrus-sasl",
+            "libatomic",
+            "lsof"
+        ],
+        "pip": [
+            "typing-extensions"
+        ]
+    }
+}

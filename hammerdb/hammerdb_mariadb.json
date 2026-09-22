@@ -1,0 +1,13 @@
+{
+    "dependencies": {
+        "rhel": [
+            "mariadb",
+            "mariadb-common",
+            "mariadb-errmsg",
+            "mariadb-server",
+            "mariadb-server-utils"
+        ],
+        "pip": [
+        ]
+    }
+}

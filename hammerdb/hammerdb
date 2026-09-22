@@ -1,0 +1,334 @@
+#!/bin/bash
+
+#
+# Copyright (C) 2022  Sanjay Rao srao@redhat.com
+#                     David Valin dvalin@redhat.com
+#
+# This program is free software; you can redistribute it and/or
+# modify it under the terms of the GNU General Public License
+# as published by the Free Software Foundation; either version 2
+# of the License, or (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program; if not, write to the Free Software
+# Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+
+arguments="$@"
+log_mount=""
+pcp=""
+pdir=""
+script_dir=$(realpath $(dirname $0))
+export script_dir
+hmd_dir=${script_dir}/hammerdb-tpcc/Hammerdb
+mkdir -p $hmd_dir
+export hmd_dir
+
+curdir=`pwd`
+if [[ $0 == "./"* ]]; then
+	chars=`echo $0 | awk -v RS='/' 'END{print NR-1}'`
+	if [[ $chars == 1 ]]; then
+		run_dir=`pwd`
+	else
+		run_dir=`echo $0 | cut -d'/' -f 1-${chars} | cut -d'.' -f2-`
+		run_dir="${curdir}${run_dir}"
+	fi
+else
+	chars=`echo $0 | awk -v RS='/' 'END{print NR-1}'`
+	run_dir=`echo $0 | cut -d'/' -f 1-${chars}`
+fi
+export run_dir
+
+if [ ! -f "/tmp/hammerdb.out" ]; then
+        command="${0} $@"
+        echo $command
+        $command &> /tmp/hammerdb.out
+	rtc=$?
+	cat /tmp/hammerdb.out
+	rm /tmp/hammerdb.out
+	exit $rtc
+fi
+
+
+test_name="hammerdb"
+export test_name
+
+## Disable selinux
+setenforce 0
+tuned_original=""
+disks=none
+log_disks=""
+user=""
+fs="xfs"
+tools_git=https://github.com/redhat-performance/test_tools-wrappers
+warehouses=""
+
+TOOLS_BIN="${HOME}/test_tools"
+export TOOLS_BIN
+
+attempt_tools_generic()
+{
+	method="$1"
+        if [[ ! -d "$TOOLS_BIN" ]]; then
+                $method ${tools_git}/archive/refs/heads/main.zip
+                if [[ $? -eq 0 ]]; then
+                        unzip -q main.zip
+                        mv test_tools-wrappers-main ${TOOLS_BIN}
+                        rm main.zip
+                fi
+        fi
+}
+
+attempt_tools_git()
+{
+        if [[ ! -d "$TOOLS_BIN" ]]; then
+                git clone $tools_git "$TOOLS_BIN"
+                if [ $? -ne 0 ]; then
+			echo "Error: pulling git $tools_git failed."
+			exit 101
+                fi
+        fi
+}
+
+attempt_tools_generic "wget"
+attempt_tools_generic "curl -L -O "
+attempt_tools_git
+
+usage()
+{
+	echo "$1 usge:"
+	echo "--disks <disks>: Comma separated list of disks.  Special type, known as grab_disk"
+	echo "  is also supported.  grab_disks locates all the disks that are not mounted and places"
+	echo "  into file.  Those disks are what will be used to build the filesystem with"
+	echo "  Note grab_disk does not recognize devices that have filesystems on them but are"
+	echo "  not mounted, the device is considered avaialble for use and will be placed in the"
+	echo "  file and be used in the creation of the filesystem.  grab_disk is part fo the zathras kit."
+	echo "--filesys: filesys type to use.  XFS is the default"
+	echo "--sub_test test running:  Test we are to run.  Supported tests are"
+	echo "    mariadb, mssql and postgres"
+	echo "--users <users>: Comma separate of the number of users to run.  Example"
+	echo "     --users 10,20,30"
+	echo "--usage: This usage message"
+	${TOOLS_BIN}/general_setup --usage
+	exit $E_USAGE
+}
+
+#
+# Variables set
+#
+# TOOLS_BIN: points to the tool directory
+# to_home_root: home directory
+# to_configuration: configuration information
+# to_times_to_run: number of times to run the test
+# to_run_label: Label for the run
+# to_user: User on the test system running the test
+# to_sys_type: for results info, basically aws, azure or local
+# to_sysname: name of the system
+# to_tuned_setting: tuned setting
+#
+
+${TOOLS_BIN}/gather_data ${curdir}
+source ${TOOLS_BIN}/general_setup "$@"
+export to_pkg_tool_flags
+export to_no_pkg_install
+
+unset DISPLAY
+users_to_run=""
+test="none"
+
+create_and_mount_fs()
+{
+
+	if [[ $disks == "grab_disks" ]]; then
+		results=`$TOOLS_BIN/grab_disks ${disks}`
+		if [ $? -ne 0 ]; then
+			echo grab disks failed.
+			exit $E_GENERAL
+		fi
+        	max_disks=`echo $results | cut -d: -f 2`
+        	disks=`echo $results | cut -d: -f 1  | sed "s/,/ /g"`
+	else
+		disks=`echo $disks | sed "s/,/ /g"`
+		max_disks=`echo $disks | tr -d -c ' '  | awk '{ print length; }'`
+		let "max_disks=${max_disks}+1"
+	fi
+
+	cd $to_home_root/$to_user
+	echo $disks > disks
+	umount -q /perf1
+
+
+	$TOOLS_BIN/lvm_create --devices "${disks}" --lvm_vol hammerdb --lvm_grp hammerdb --wipefs
+	if [ $? -ne 0 ]; then
+		echo LVM create failed.
+		exit $E_GENERAL
+	fi
+	mkdir -p /perf1
+	$TOOLS_BIN/create_filesystem --fs_type $fs --mount_dir /perf1 --device /dev/hammerdb/hammerdb
+	if [ $? -ne 0 ]; then
+		echo filesystem create failed.
+		exit $E_GENERAL
+	fi
+
+	if [[ $log_disks != "" ]]; then
+		log_disks=`echo $log_disks | sed "s/,/ /g"`
+		umount -q /perf2
+		mkdir -p /perf2
+		$TOOLS_BIN/lvm_create --devices "${log_disks}" --lvm_vol log_hammerdb --lvm_grp log_hammerdb --wipefs
+		if [ $? -ne 0 ]; then
+			echo LVM create of log disk failed.
+			exit $E_GENERAL
+		fi
+		$TOOLS_BIN/create_filesystem --fs_type $fs --mount_dir /perf2 --device /dev/log_hammerdb/log_hammerdb
+		if [ $? -ne 0 ]; then
+			echo filesystem create for log failed.
+			exit $E_GENERAL
+		fi
+	fi
+}
+
+#
+# Define options
+#
+ARGUMENT_LIST=(
+	"disks"
+	"filesys"
+	"home_parent"
+	"iterations"
+	"log_disks"
+	"run_user"
+	"sub_test"
+	"warehouses"
+	"users"
+)
+
+NO_ARGUMENTS=(
+	"usage"
+)
+
+# read arguments
+opts=$(getopt \
+    --longoptions "$(printf "%s:," "${ARGUMENT_LIST[@]}")" \
+    --longoptions "$(printf "%s," "${NO_ARGUMENTS[@]}")" \
+    --name "$(basename "$0")" \
+    --options "h" \
+    -- "$@"
+)
+
+if [ $? -ne 0 ]; then
+	exit $E_PARSE_ARGS
+fi
+
+eval set --$opts
+
+while [[ $# -gt 0 ]]; do
+        case "$1" in
+                --disks)
+			disks=$2
+			shift 2
+		;;
+		--filesys)
+			fs=${2}
+			shift 2
+		;;
+                --iterations)
+                        iterations=${2}
+			shift 2
+                ;;
+		--log_disks)
+			log_mount="-M /perf2"
+			log_disks=${2}
+			shift 2
+		;;
+		--users)
+			setto=`echo $2 | sed "s/,/ /g"`
+			users_to_run="-u \"${setto}\""
+			shift 2
+		;;
+		--sub_test)
+			test=$2
+			shift 2
+		;;
+		--warehouses)
+			warehouses="-w $2"
+			shift 2
+		;;
+		--usage)
+			usage $0
+		;;
+		-h)
+			usage $0
+		;;
+		--)
+			break; 
+		;;
+		*)
+			echo option not found $1
+			usage $0
+		;;
+        esac
+done
+
+if [[ $test == "none" ]]; then
+	echo You must designate a test, mssql, mariadb, postgres
+	usage $0
+fi
+
+package_tool --wrapper_config ${run_dir}/hammerdb.json --no_packages $to_no_pkg_install
+prtc=$?
+if [[ $prtc -ne 0 ]]; then
+	echo Package installation using ${TOOLS_BIN}/package_tool was unsuccessful.
+	exit $prtc
+fi
+
+create_and_mount_fs
+
+#
+# change to the execution directory.
+#
+if [[ $to_tuned_setting != "none" ]]; then
+	tuned_original=`tuned-adm active | cut -d' ' -f4`
+	tuned-adm profile $to_tuned_setting
+fi
+pushd $hmd_dir > /dev/null
+rm -rf $test
+popd > /dev/null
+cpdir=""
+if [[ $to_use_pcp -eq 1 ]]; then
+	pdir=/tmp/pcp_`date "+%Y.%m.%d-%H.%M.%S"`
+	pcp="-p ${pdir}"
+	cpdir="--copy_dir $pdir"
+fi
+cd $run_dir
+echo ./run_hammerdb -m /perf1 -t ${test} ${users_to_run} ${warehouses} ${log_mount} $pcp > run_this
+chmod 755 run_this
+./run_this
+
+#pwd
+#echo $hmd_dir $test
+rm -rf $test
+mv $hmd_dir $test
+cp /tmp/hammerdb.out .
+
+tmp_file=`mktemp /tmp/hammer_data.XXXXX`
+find -L $test  -type f  -exec grep -Iq . {} \; -print > $tmp_file
+#echo "/usr/local/${test}/results_hammerdb_*.csv" >> $tmp_file
+grep  -E "out|csv|report" $tmp_file | grep -v "Hammerdb" | grep -v tcl | tar cf /tmp/results_hammerdb_${test}_${to_tuned_setting}.tar --files-from=/dev/stdin
+csv_file=`grep  "csv" $tmp_file | grep -v "Hammerdb"`
+${TOOLS_BIN}/csv_to_json $to_json_flags --csv_file $csv_file --output_file results_hammer.json
+$TOOLS_BIN/verify_results $to_verify_flags --schema_file $script_dir/results_schema.py --class_name Hammerdb_Results --file results_hammer.json
+rtc=$?
+${TOOLS_BIN}/save_results --curdir $curdir --home_root $to_home_root --tar_file /tmp/results_hammerdb_${test}_${to_tuned_setting}.tar --test_name hammerdb_$test_name_${test} --tuned_setting=$to_tuned_setting --version "None" --user $to_user $cpdir
+rm $tmp_file
+
+if [[ $to_tuned_setting != "none" ]]; then
+	tuned-adm profile $tuned_original
+fi
+## Re-enable selinux
+setenforce 1
+$TOOLS_BIN/lvm_delete --lvm_vol hammerdb --lvm_grp hammerdb --mount_pnt /perf1
+exit $rtc

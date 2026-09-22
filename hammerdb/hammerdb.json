@@ -1,0 +1,15 @@
+{
+    "dependencies": {
+        "rhel": [
+            "lvm2",
+            "sysstat",
+            "bc",
+            "git",
+            "unzip",
+            "wget",
+            "zip"
+        ],
+        "pip": [
+        ]
+    }
+}
