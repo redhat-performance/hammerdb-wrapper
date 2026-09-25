@@ -51,7 +51,7 @@ install_mssql()
 	cd /opt/mssql/bin/
 	mkdir /var/opt/mssql/secrets/
 
-	MSSQL_SA_PASSWORD="abcdefgh"
+	MSSQL_SA_PASSWORD="A2!bcdefgh"
 	export MSSQL_SA_PASSWORD
 	export MSSQL_PID="Evaluation"
 
@@ -60,8 +60,8 @@ install_mssql()
 
 	echo 1 > input
 	echo Yes >> input
-	echo abcdefgh >> input
-	echo abcdefgh >> input
+	echo A2!bcdefgh >> input
+	echo A2!bcdefgh >> input
 
 	./mssql-conf -n setup accept-eula < input
 
@@ -135,8 +135,8 @@ install_mariadb()
 
 	systemctl restart mariadb.service
 
-	#echo "UPDATE mysql.user SET Password=PASSWORD('abcdefgh')  WHERE User='root';" > input
-	#echo "GRANT ALL ON *.* to root@'%' IDENTIFIED BY 'abcdefgh';" >> input
+	#echo "UPDATE mysql.user SET Password=PASSWORD('A2!bcdefgh')  WHERE User='root';" > input
+	#echo "GRANT ALL ON *.* to root@'%' IDENTIFIED BY 'A2!bcdefgh';" >> input
     	echo "SET PASSWORD FOR 'root'@localhost = PASSWORD('mysql');" > input
 	echo "flush privileges;" >> input
 	echo "exit" >> input
