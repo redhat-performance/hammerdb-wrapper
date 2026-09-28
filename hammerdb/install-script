@@ -62,8 +62,8 @@ install_mssql()
 	echo Yes >> input
 	echo A2!bcdefgh >> input
 	echo A2!bcdefgh >> input
-
 	./mssql-conf -n setup accept-eula < input
+	rm input
 
 	sleep 30
 	systemctl stop mssql-server
@@ -140,7 +140,7 @@ install_mariadb()
 	echo "exit" >> input
 
 	mysql -u root < input
-
+	rm input
 	sleep 30
 	systemctl restart mariadb.service
 }
@@ -192,6 +192,7 @@ install_postgres()
 	echo "alter role postgres password 'postgres'" > input
 
 	psql -U postgres -d postgres < input
+	rm input
 	sleep 30
 	systemctl restart postgresql.service
 }
@@ -277,6 +278,7 @@ echo HammerDB-3.2-Linux-x86-64-Install installed.
 echo "y" > input
 echo "$hmd_dir" >> input 
 ${hmd_dir}/HammerDB-3.2-Linux-x86-64-Install < input
+rm input
 
 #
 # Shutdown all running instances
