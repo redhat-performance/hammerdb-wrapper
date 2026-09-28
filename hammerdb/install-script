@@ -135,8 +135,6 @@ install_mariadb()
 
 	systemctl restart mariadb.service
 
-	#echo "UPDATE mysql.user SET Password=PASSWORD('A2!bcdefgh')  WHERE User='root';" > input
-	#echo "GRANT ALL ON *.* to root@'%' IDENTIFIED BY 'A2!bcdefgh';" >> input
     	echo "SET PASSWORD FOR 'root'@localhost = PASSWORD('mysql');" > input
 	echo "flush privileges;" >> input
 	echo "exit" >> input
