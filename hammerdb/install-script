@@ -51,7 +51,7 @@ install_mssql()
 	cd /opt/mssql/bin/
 	mkdir /var/opt/mssql/secrets/
 
-	MSSQL_SA_PASSWORD="abcdefgh"
+	MSSQL_SA_PASSWORD="A2!bcdefgh"
 	export MSSQL_SA_PASSWORD
 	export MSSQL_PID="Evaluation"
 
@@ -60,10 +60,10 @@ install_mssql()
 
 	echo 1 > input
 	echo Yes >> input
-	echo abcdefgh >> input
-	echo abcdefgh >> input
-
+	echo A2!bcdefgh >> input
+	echo A2!bcdefgh >> input
 	./mssql-conf -n setup accept-eula < input
+	rm input
 
 	sleep 30
 	systemctl stop mssql-server
@@ -135,14 +135,12 @@ install_mariadb()
 
 	systemctl restart mariadb.service
 
-	#echo "UPDATE mysql.user SET Password=PASSWORD('abcdefgh')  WHERE User='root';" > input
-	#echo "GRANT ALL ON *.* to root@'%' IDENTIFIED BY 'abcdefgh';" >> input
     	echo "SET PASSWORD FOR 'root'@localhost = PASSWORD('mysql');" > input
 	echo "flush privileges;" >> input
 	echo "exit" >> input
 
 	mysql -u root < input
-
+	rm input
 	sleep 30
 	systemctl restart mariadb.service
 }
@@ -194,6 +192,7 @@ install_postgres()
 	echo "alter role postgres password 'postgres'" > input
 
 	psql -U postgres -d postgres < input
+	rm input
 	sleep 30
 	systemctl restart postgresql.service
 }
@@ -279,6 +278,7 @@ echo HammerDB-3.2-Linux-x86-64-Install installed.
 echo "y" > input
 echo "$hmd_dir" >> input 
 ${hmd_dir}/HammerDB-3.2-Linux-x86-64-Install < input
+rm input
 
 #
 # Shutdown all running instances
