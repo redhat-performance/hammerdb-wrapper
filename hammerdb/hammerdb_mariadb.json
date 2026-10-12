@@ -13,7 +13,7 @@
             "mariadb123-errmsg",
             "mariadb123-server",
             "mariadb123-server-utils",
-	    "mysql"
+	    "mysql-selinux"
         ],
         "ubuntu": [
             "mariadb-server",

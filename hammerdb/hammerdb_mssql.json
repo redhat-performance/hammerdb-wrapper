@@ -9,7 +9,7 @@
             "lsof"
         ],
         "amzn": [
-            "mssql-server",
+            "mysql-selinux",
             "unixODBC-devel",
             "gdb",
             "cyrus-sasl",
