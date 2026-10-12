@@ -7,7 +7,26 @@
             "mariadb-server",
             "mariadb-server-utils"
         ],
+        "amzn": [
+            "mariadb123",
+            "mariadb123-common",
+            "mariadb123-errmsg",
+            "mariadb123-server",
+            "mariadb123-server-utils",
+	    "mysql"
+        ],
+        "ubuntu": [
+            "mariadb-server",
+            "mariadb-client",
+            "mariadb-common"
+        ],
+        "sles": [
+            "mariadb",
+            "mariadb-client",
+            "mariadb-tools"
+        ],
         "pip": [
         ]
+
     }
 }

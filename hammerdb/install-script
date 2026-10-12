@@ -27,25 +27,83 @@ mountpoint=none
 db_type=none
 log_mount_point="none"
 
+#
+# Identify the distribution so the OS specific install steps (package repos,
+# data directory layout, security modules) can be selected.  detect_os returns
+# the /etc/os-release ID, e.g. "rhel", "fedora", "ubuntu", "amzn" (Amazon
+# Linux), "sles" (SUSE Linux Enterprise).  Amazon Linux is RHEL-family (dnf,
+# /var/lib/pgsql, /etc/my.cnf, postgresql-setup), so it is handled by the same
+# code path as "rhel" below.  SLES (zypper, AppArmor, no postgresql-setup) has
+# its own branches; MSSQL is not supported on SLES.
+#
+running_os=$(${TOOLS_BIN}/detect_os)
+
+#
+# Disable an AppArmor profile (Ubuntu/Debian) so the database engine can access
+# its data directory on the benchmark filesystem.  No-op when the profile or
+# AppArmor itself is not present.
+#
+disable_apparmor_profile()
+{
+	profile=$1
+	if [[ -f /etc/apparmor.d/${profile} ]]; then
+		mkdir -p /etc/apparmor.d/disable
+		ln -sf /etc/apparmor.d/${profile} /etc/apparmor.d/disable/
+		if command -v apparmor_parser > /dev/null; then
+			apparmor_parser -R /etc/apparmor.d/${profile} 2>/dev/null
+		fi
+	fi
+}
+
 install_mssql()
 {
-	wget https://packages.microsoft.com/config/rhel/9.0/mssql-server-2022.repo
-	mv mssql-server-2022.repo /etc/yum.repos.d
-	curl https://packages.microsoft.com/config/rhel/9/prod.repo | tee /etc/yum.repos.d/mssql-release.repo
-	dnf clean all
-	dnf -y makecache
-	dnf -y install mssql-server
-	echo done installing mssql-server/mssql-tools
-	ACCEPT_EULA=Y yum install -y mssql-tools unixODBC-devel
+	if [[ $running_os == "sles" ]]; then
+		#
+		# Microsoft does not publish a SQL Server build for SUSE Linux
+		# Enterprise, and its RHEL rpm will not resolve against SLES, so bail
+		# out rather than attempt a broken install.  Use mariadb or postgres
+		# on this distribution.
+		#
+		echo "Error: MSSQL is not supported on SUSE Linux Enterprise (sles);"
+		echo "       Microsoft does not publish a SQL Server build for it."
+		echo "       Use -t mariadb or -t postgres instead."
+		exit $E_GENERAL
+	fi
+	if [[ $running_os == "ubuntu" ]]; then
+		#
+		# Configure Microsoft's Ubuntu repositories for the server and tools.
+		#
+		os_ver=$(${TOOLS_BIN}/detect_os --os-version)
+		curl -fsSL https://packages.microsoft.com/keys/microsoft.asc | tee /etc/apt/trusted.gpg.d/microsoft.asc > /dev/null
+		curl -fsSL https://packages.microsoft.com/config/ubuntu/${os_ver}/mssql-server-2022.list | tee /etc/apt/sources.list.d/mssql-server-2022.list
+		curl -fsSL https://packages.microsoft.com/config/ubuntu/${os_ver}/prod.list | tee /etc/apt/sources.list.d/mssql-release.list
+		apt-get update
+		apt-get -y install mssql-server
+		echo done installing mssql-server/mssql-tools
+		ACCEPT_EULA=Y apt-get install -y mssql-tools unixodbc-dev
+	else
+		#
+		# RHEL-family path, also used for Amazon Linux ("amzn").  Microsoft
+		# does not publish an Amazon Linux build, so the RHEL repositories are
+		# reused there.
+		#
+		wget https://packages.microsoft.com/config/rhel/9.0/mssql-server-2022.repo
+		mv mssql-server-2022.repo /etc/yum.repos.d
+		curl https://packages.microsoft.com/config/rhel/9/prod.repo | tee /etc/yum.repos.d/mssql-release.repo
+		dnf clean all
+		dnf -y makecache
+		dnf -y install mssql-server
+		echo done installing mssql-server/mssql-tools
+		ACCEPT_EULA=Y yum install -y mssql-tools unixODBC-devel
+	fi
 	echo 'export PATH="$PATH:/opt/mssql-tools/bin"' >> ~/.bash_profile
 	cd $hmd_dir
 	cp -R  ${script_dir}/hammerdb_scripts/mssql/* .
 
 	rm -rf ${mountpoint}/mssql_data/*
 	mkdir -p ${mountpoint}/mssql_data
-	chown -R mssql:mssql ${mountpoint}/mssql_data 
-	chown -R mssql:mssql /perf1/mssql_data
-	
+	chown -R mssql:mssql ${mountpoint}/mssql_data
+
 	systemctl stop mssql-server
 
 	cd /opt/mssql/bin/
@@ -84,7 +142,22 @@ install_mssql()
 
 install_packages()
 {
-	package_tool --wrapper_config ${run_dir}/${1} --no_packages $to_no_pkg_install
+	ins_file=${run_dir}/${1}
+	if [[ $running_os == "amzn" ]]; then
+		if [[ $db_type != "mssql" ]]; then
+			#
+			# Assumption, last version in the list is what we want.
+			#
+			val=""
+			if [[ $db_type == "mariadb" ]]; then
+				val=$(dnf list | grep mariadb  | tail -1 | cut -d'-' -f 1 | sed "s/mariadb//g")
+			else
+				val=$(dnf list | grep ^postgresql  | cut -d'-' -f 1 | cut -d'.' -f1 | sed "s/postgresql//g" | tail -1)
+			fi
+			sed -i "s/xxx/${val}/g" $ins_file
+		fi
+	fi
+	package_tool --wrapper_config $ins_file --no_packages $to_no_pkg_install
 	prtc=$?
 	if [[ $prtc -ne 0 ]]; then
 		echo Package installation of ${1}, using ${TOOLS_BIN}/package_tool was unsuccessful.
@@ -131,7 +204,39 @@ install_mariadb()
 	fi
 	sed -i "/innodb_file_per_table/a innodb_log_group_home_dir = ${log_mount_point}\/mysql\/log" my.cnf
 
-	/usr/bin/cp my.cnf /etc/my.cnf
+	if [[ $running_os == "ubuntu" ]]; then
+		#
+		# On Ubuntu the server reads drop-ins from mariadb.conf.d, and
+		# AppArmor must be told to allow the relocated data directory.
+		#
+		disable_apparmor_profile usr.sbin.mariadbd
+		mkdir -p /etc/mysql/mariadb.conf.d
+		/usr/bin/cp my.cnf /etc/mysql/mariadb.conf.d/99-hammerdb.cnf
+
+		#
+		# Ubuntu does not initialize a data directory that lives outside of
+		# the packaged default, so seed it before starting the service.
+		#
+		mariadb-install-db --user=mysql --datadir=${mountpoint}/mysql/data > /dev/null
+		chown -R mysql:mysql ${mountpoint}/mysql
+	elif [[ $running_os == "sles" ]]; then
+		#
+		# SLES reads the server config from /etc/my.cnf (like RHEL) but uses
+		# AppArmor; disable the mariadb profile and seed the relocated data
+		# directory before the service starts.
+		#
+		disable_apparmor_profile usr.sbin.mariadbd
+		/usr/bin/cp my.cnf /etc/my.cnf
+
+		mariadb-install-db --user=mysql --datadir=${mountpoint}/mysql/data > /dev/null
+		chown -R mysql:mysql ${mountpoint}/mysql
+	else
+		#
+		# RHEL-family path, also used for Amazon Linux ("amzn"), which reads
+		# the server config from /etc/my.cnf.
+		#
+		/usr/bin/cp my.cnf /etc/my.cnf
+	fi
 
 	systemctl restart mariadb.service
 
@@ -145,6 +250,149 @@ install_mariadb()
 	systemctl restart mariadb.service
 }
 
+#
+# Ubuntu lays PostgreSQL out per-version under /etc/postgresql and
+# /var/lib/postgresql and manages instances with pg_createcluster rather than
+# postgresql-setup, so it needs its own data directory setup.  Expects the
+# bundled postgresql.conf (already tuned) to be present in the current dir.
+#
+install_postgres_ubuntu()
+{
+	#
+	# Locate the installed PostgreSQL version and its per-version config dir.
+	#
+	pg_ver=$(ls /usr/lib/postgresql/ 2>/dev/null | sort -n | tail -1)
+	if [[ -z "$pg_ver" ]]; then
+		echo "Error: unable to locate an installed PostgreSQL under /usr/lib/postgresql"
+		exit $E_GENERAL
+	fi
+	pg_conf_dir="/etc/postgresql/${pg_ver}/main"
+
+	#
+	# The bundled postgresql.conf requests en_GB/en_US locales; generate them
+	# so the cluster will start.
+	#
+	locale-gen en_US.UTF-8 en_GB.UTF-8 > /dev/null 2>&1
+
+	#
+	# Drop the cluster created automatically on package install along with any
+	# stale data, then build a fresh one on the benchmark filesystem.
+	#
+	systemctl stop postgresql > /dev/null 2>&1
+	pg_dropcluster --stop ${pg_ver} main > /dev/null 2>&1
+	rm -rf ${mountpoint}/postgres_data
+
+	mkdir -p ${mountpoint}/postgres_data
+	chmod 700 ${mountpoint}/postgres_data
+	chown -R postgres:postgres ${mountpoint}/postgres_data
+	mkdir -p ${log_mount_point}/postgres_log
+	chown -R postgres:postgres ${log_mount_point}/postgres_log
+
+	pg_createcluster ${pg_ver} main -d ${mountpoint}/postgres_data -- --encoding=UTF8
+	if [ $? -ne 0 ]; then
+		echo "Error: pg_createcluster failed."
+		exit $E_GENERAL
+	fi
+
+	#
+	# Relocate the write-ahead log onto the (optional) log filesystem.
+	#
+	systemctl stop postgresql > /dev/null 2>&1
+	mv ${mountpoint}/postgres_data/pg_wal ${log_mount_point}/postgres_log
+	ln -sf ${log_mount_point}/postgres_log/pg_wal ${mountpoint}/postgres_data/pg_wal
+	chown -R postgres:postgres ${log_mount_point}/postgres_log
+
+	#
+	# Apply the trust auth file and drop the tuning into conf.d so the
+	# cluster-generated data_directory/socket settings are preserved.
+	#
+	/usr/bin/cp -f pg_hba.conf ${pg_conf_dir}/pg_hba.conf
+	mkdir -p ${pg_conf_dir}/conf.d
+	/usr/bin/cp -f postgresql.conf ${pg_conf_dir}/conf.d/hammerdb.conf
+	chown -R postgres:postgres ${pg_conf_dir}
+	systemctl restart postgresql
+
+	#
+	# Fail loudly if the cluster did not come up.  A silently-stopped cluster
+	# leaves the default (scram-sha-256) pg_hba in place from the client's
+	# point of view, so the later build step connecting over TCP would prompt
+	# for a password instead of using the trust auth configured above.
+	#
+	if ! pg_isready -q; then
+		echo "Error: PostgreSQL cluster failed to start after configuration."
+		echo "       Check: journalctl -u postgresql and ${log_mount_point}/postgres_log"
+		pg_lsclusters
+		exit $E_GENERAL
+	fi
+}
+
+#
+# SLES lays PostgreSQL out under /var/lib/pgsql like RHEL, but does not ship
+# postgresql-setup.  Initialize the relocated data directory with initdb
+# directly.  Expects the bundled postgresql.conf/pg_hba.conf to be present in
+# the current directory.
+#
+install_postgres_sles()
+{
+	#
+	# SUSE installs the server binaries under /usr/lib/postgresql<ver>/bin;
+	# pick the highest installed version, falling back to anything on PATH.
+	#
+	pg_bindir=$(ls -d /usr/lib/postgresql*/bin 2>/dev/null | sort -V | tail -1)
+	if [[ -z "$pg_bindir" ]] || [[ ! -x "${pg_bindir}/initdb" ]]; then
+		pg_bindir=$(dirname "$(command -v initdb 2>/dev/null)")
+	fi
+	if [[ -z "$pg_bindir" ]] || [[ ! -x "${pg_bindir}/initdb" ]]; then
+		echo "Error: unable to locate the PostgreSQL initdb binary."
+		exit $E_GENERAL
+	fi
+
+	systemctl stop postgresql > /dev/null 2>&1
+	rm -rf /var/lib/pgsql/data
+	rm -rf ${mountpoint}/postgres_data
+
+	mkdir -p ${mountpoint}/postgres_data
+	chmod 700 ${mountpoint}/postgres_data
+	chown -R postgres:postgres ${mountpoint}/postgres_data
+	mkdir -p /var/lib/pgsql
+	chown postgres:postgres /var/lib/pgsql
+	ln -sf ${mountpoint}/postgres_data /var/lib/pgsql/data
+	chown -h postgres:postgres /var/lib/pgsql/data
+	mkdir -p ${log_mount_point}/postgres_log
+	chown -R postgres:postgres ${log_mount_point}/postgres_log
+
+	#
+	# Initialize the cluster on the benchmark filesystem as the postgres user.
+	#
+	su - postgres -c "${pg_bindir}/initdb -D ${mountpoint}/postgres_data --encoding=UTF8"
+	if [ $? -ne 0 ]; then
+		echo "Error: initdb failed."
+		exit $E_GENERAL
+	fi
+
+	#
+	# Relocate the write-ahead log onto the (optional) log filesystem.
+	#
+	mv ${mountpoint}/postgres_data/pg_wal ${log_mount_point}/postgres_log
+	ln -sf ${log_mount_point}/postgres_log/pg_wal ${mountpoint}/postgres_data/pg_wal
+	chown -R postgres:postgres ${log_mount_point}/postgres_log
+
+	/usr/bin/cp -f pg_hba.conf ${mountpoint}/postgres_data/
+	/usr/bin/cp -f postgresql.conf ${mountpoint}/postgres_data/
+	chown postgres:postgres ${mountpoint}/postgres_data/pg_hba.conf ${mountpoint}/postgres_data/postgresql.conf
+	systemctl restart postgresql
+
+	#
+	# Fail loudly if the cluster did not come up, otherwise the later build
+	# step would hit the default (non-trust) auth and prompt for a password.
+	#
+	if command -v pg_isready > /dev/null && ! pg_isready -q; then
+		echo "Error: PostgreSQL cluster failed to start after configuration."
+		echo "       Check: journalctl -u postgresql and ${log_mount_point}/postgres_log"
+		exit $E_GENERAL
+	fi
+}
+
 install_postgres()
 {
 	#
@@ -154,21 +402,6 @@ install_postgres()
 
 	cd $hmd_dir
 	cp -R ${script_dir}/hammerdb_scripts/postgres/* .
-
-	rm -rf /var/lib/pgsql/data
-	rm -rf ${mountpoint}/postgres_data
-
-	mkdir -p ${mountpoint}/postgres_data
-	ln -sf ${mountpoint}/postgres_data /var/lib/pgsql/data
-	chmod 700 ${mountpoint}/postgres_data
-	chown -R postgres:postgres ${mountpoint}/postgres_data
-        mkdir -p ${log_mount_point}/postgres_log
-        chown -R mysql:mysql ${log_mount_point}/postgres_log
-
-	postgresql-setup initdb
-	sleep 10
-	mv /var/lib/pgsql/data/pg_wal ${log_mount_point}/postgres_log
-	ln -sf ${log_mount_point}/postgres_log/pg_wal /var/lib/pgsql/data/pg_wal
 
 	totmem=`cat /proc/meminfo |grep "MemTotal:" | awk '{print $2}'`
 
@@ -186,9 +419,36 @@ install_postgres()
 	   	sed -i "s/^shared_buffers =.*/shared_buffers = 64000MB/" postgresql.conf
 	fi
 
-	/usr/bin/cp -f pg_hba.conf /var/lib/pgsql/data
-	/usr/bin/cp -f postgresql.conf /var/lib/pgsql/data
-	systemctl restart postgresql
+	if [[ $running_os == "ubuntu" ]]; then
+		install_postgres_ubuntu
+	elif [[ $running_os == "sles" ]]; then
+		install_postgres_sles
+	else
+		#
+		# RHEL-family path, also used for Amazon Linux ("amzn"), which lays
+		# PostgreSQL out under /var/lib/pgsql and initializes it with
+		# postgresql-setup just like RHEL.
+		#
+		rm -rf /var/lib/pgsql/data
+		rm -rf ${mountpoint}/postgres_data
+
+		mkdir -p ${mountpoint}/postgres_data
+		ln -sf ${mountpoint}/postgres_data /var/lib/pgsql/data
+		chmod 700 ${mountpoint}/postgres_data
+		chown -R postgres:postgres ${mountpoint}/postgres_data
+		mkdir -p ${log_mount_point}/postgres_log
+		chown -R mysql:mysql ${log_mount_point}/postgres_log
+
+		postgresql-setup initdb
+		sleep 10
+		mv /var/lib/pgsql/data/pg_wal ${log_mount_point}/postgres_log
+		ln -sf ${log_mount_point}/postgres_log/pg_wal /var/lib/pgsql/data/pg_wal
+
+		/usr/bin/cp -f pg_hba.conf /var/lib/pgsql/data
+		/usr/bin/cp -f postgresql.conf /var/lib/pgsql/data
+		systemctl restart postgresql
+	fi
+
 	echo "alter role postgres password 'postgres'" > input
 
 	psql -U postgres -d postgres < input
@@ -258,9 +518,11 @@ if [[ $db_type == "none" ]]; then
 fi
 
 #
-# Turn selinux off.
+# Turn selinux off (SELinux is RHEL-family only; skip where setenforce is absent).
 #
-setenforce 0
+if command -v setenforce > /dev/null; then
+	setenforce 0
+fi
 
 #
 # Install the hammerdb

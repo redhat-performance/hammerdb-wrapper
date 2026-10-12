@@ -8,6 +8,22 @@
             "libatomic",
             "lsof"
         ],
+        "amzn": [
+            "mssql-server",
+            "unixODBC-devel",
+            "gdb",
+            "cyrus-sasl",
+            "libatomic",
+            "lsof"
+        ],
+        "ubuntu": [
+            "mssql-server",
+            "unixodbc-dev",
+            "gdb",
+            "libsasl2-2",
+            "libatomic1",
+            "lsof"
+        ],
         "pip": [
             "typing-extensions"
         ]

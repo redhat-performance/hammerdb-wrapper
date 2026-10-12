@@ -57,8 +57,8 @@ fi
 test_name="hammerdb"
 export test_name
 
-## Disable selinux
-setenforce 0
+## Disable selinux (RHEL-family only; skip where setenforce is absent)
+command -v setenforce > /dev/null && setenforce 0
 tuned_original=""
 disks=none
 log_disks=""
@@ -290,7 +290,7 @@ create_and_mount_fs
 #
 # change to the execution directory.
 #
-if [[ $to_tuned_setting != "none" ]]; then
+if [[ $(command -v tuned-adm > /dev/null) ]] && [[ $to_tuned_setting != "none" ]]; then
 	tuned_original=`tuned-adm active | cut -d' ' -f4`
 	tuned-adm profile $to_tuned_setting
 fi
@@ -325,10 +325,10 @@ rtc=$?
 ${TOOLS_BIN}/save_results --curdir $curdir --home_root $to_home_root --tar_file /tmp/results_hammerdb_${test}_${to_tuned_setting}.tar --test_name hammerdb_$test_name_${test} --tuned_setting=$to_tuned_setting --version "None" --user $to_user $cpdir
 rm $tmp_file
 
-if [[ $to_tuned_setting != "none" ]]; then
+if [[ $(command -v tuned-adm > /dev/null) ]] && [[ $to_tuned_setting != "none" ]]; then
 	tuned-adm profile $tuned_original
 fi
-## Re-enable selinux
-setenforce 1
+## Re-enable selinux (RHEL-family only; skip where setenforce is absent)
+command -v setenforce > /dev/null && setenforce 1
 $TOOLS_BIN/lvm_delete --lvm_vol hammerdb --lvm_grp hammerdb --mount_pnt /perf1
 exit $rtc

@@ -7,6 +7,26 @@
             "glibc-langpack-en",
             "libpq"
         ],
+        "amzn": [
+            "postgresql18",
+            "postgresql18-contrib",
+            "postgresql18-server",
+            "glibc-langpack-en",
+            "libpq"
+        ],
+        "ubuntu": [
+            "postgresql",
+            "postgresql-contrib",
+            "postgresql-client",
+            "locales"
+        ],
+        "sles": [
+            "postgresql",
+            "postgresql-server",
+            "postgresql-contrib",
+            "libpq5",
+            "glibc-locale"
+        ],
         "pip": [
         ]
     }
