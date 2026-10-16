@@ -5,7 +5,8 @@
             "mariadb-common",
             "mariadb-errmsg",
             "mariadb-server",
-            "mariadb-server-utils"
+            "mariadb-server-utils",
+            "mysql8.4-libs"
         ],
         "pip": [
         ]
