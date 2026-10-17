@@ -1,7 +1,7 @@
 #!/usr/bin/bash
 
 ## Defining variables
-PATH=/opt/mssql-tools/bin:$PATH
+PATH=/opt/mssql-tools18/bin:$PATH
 storagetype="Storage not specified"
 Usercount="10 20 40 80 100"
 whc="500"

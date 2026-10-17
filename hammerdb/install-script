@@ -29,17 +29,24 @@ log_mount_point="none"
 
 install_mssql()
 {
-	rhel_vers=$(rpm -E %{rhel})
-	wget https://packages.microsoft.com/config/rhel/${rhel_vers}.0/mssql-server-2025.repo
+	#
+	# Latest version for rhel is 9.0
+	#
+
+	if [[ $arch != "x86_64" ]]; then
+		echo Error: mssql has no build for ARM systems..
+		exit $E_GENERAL
+	fi
+	wget https://packages.microsoft.com/config/rhel/9.0/mssql-server-2025.repo
 	mv mssql-server-2025.repo /etc/yum.repos.d
-	curl https://packages.microsoft.com/config/rhel/${rhel_vers}/prod.repo | tee /etc/yum.repos.d/mssql-release.repo
+	curl https://packages.microsoft.com/config/rhel/9.0/prod.repo | tee /etc/yum.repos.d/mssql-release.repo
 	
 	dnf clean all
 	dnf -y makecache
 	dnf -y install mssql-server
 	echo done installing mssql-server/mssql-tools
 	ACCEPT_EULA=Y yum install -y mssql-tools18 unixODBC-devel msodbcsql18
-	echo 'export PATH="$PATH:/opt/mssql-tools/bin"' >> ~/.bash_profile
+	echo 'export PATH="$PATH:/opt/mssql-tools18/bin"' >> ~/.bash_profile
 	cd $hmd_dir
 	cp -R  ${script_dir}/hammerdb_scripts/mssql/* .
 
@@ -59,6 +66,10 @@ install_mssql()
 
 	rm -rf /var/opt/mssql
 	chmod 777 /var/opt
+	#
+	# Need to keep everything happy.
+	#
+	ln -s /opt/mssql-tools18 /opt/mssql-tools
 
 	echo 1 > input
 	echo Yes >> input
@@ -76,6 +87,7 @@ install_mssql()
 
 	systemctl disable mssql-server.service
 	systemctl restart mssql-server.service
+	sleep 60
 
 	cd $hmd_dir
 

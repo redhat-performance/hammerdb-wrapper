@@ -17,7 +17,8 @@ done
 export mountpoint
 
 # Create database files
-/opt/mssql-tools/bin/sqlcmd -U sa -P A2!bcdefgh <<! 
+
+/opt/mssql-tools18/bin/sqlcmd -U sa -P A2!bcdefgh <<! 
 drop database tpcc
 go
 CREATE DATABASE tpcc

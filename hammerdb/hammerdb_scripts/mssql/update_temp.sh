@@ -17,4 +17,4 @@ do
      echo " " >> input
      ctr=$(( ${ctr} + 1 ))
 done
-/opt/mssql-tools/bin/sqlcmd -U sa -P A2!bcdefgh < input
+/opt/mssql-tools18/bin/sqlcmd -U sa -P A2!bcdefgh < input
