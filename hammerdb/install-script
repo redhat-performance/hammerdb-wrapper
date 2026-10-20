@@ -32,8 +32,8 @@ install_mssql()
 	#
 	# Latest version for rhel is 9.0
 	#
-
-	if [[ $arch != "x86_64" ]]; then
+	arch=$(arch)
+	if [[ $arch == "aarch64" ]]; then
 		echo Error: mssql has no build for ARM systems..
 		exit $E_GENERAL
 	fi
