@@ -281,7 +281,6 @@ setenforce 0
 #
 mkdir -p $hmd_dir
 pushd  $hmd_dir > /dev/null
-hammerdb_version="6.0"
 #
 # HammerDB 6.0 is shipped as a tarball rather than a self-extracting installer.
 # Pick the RHEL9 tarball matching the host architecture.  We currently use RHEL 9 as

@@ -38,6 +38,11 @@ version="1.0"
 pcp=0
 pcpdir=""
 #
+# Set the hammerdb version, export it for the install-script to use.
+#
+hammerdb_version="6.0"
+export hammerdb_version
+#
 # HammerDB's MSSQL TPROC-C scripts reference the Windows env var $::env(TMP).
 # Each virtual user runs in its own Tcl thread/interpreter whose ::env is
 # seeded from the OS environment, so TMP must be exported in the process
@@ -209,7 +214,7 @@ run_hammerdb_users()
 		export hostnm
 		results_file=results_hammerdb_${test_to_run}.csv
 		if [[ ! -f $results_file ]]; then
-			$TOOLS_BIN/test_header_info --front_matter --results_file $results_file --host $to_configuration --sys_type $to_sys_type --tuned $to_tuned_setting --results_version $version --test_name hammerdb_${test_to_run} --field_header "connection,TPM"
+			$TOOLS_BIN/test_header_info --front_matter --results_file $results_file --host $to_configuration --sys_type $to_sys_type --tuned $to_tuned_setting --results_version $version --test_name hammerdb_${test_to_run} --field_header "connection,TPM" --meta_output "hammerdb version: $hammerdb_version"
 		fi
 		start_time=$(retrieve_time_stamp)
 		export uc
