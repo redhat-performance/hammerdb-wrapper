@@ -568,6 +568,10 @@ if [[ $test_to_run == "mssql" ]]; then
 		whc=500
 	fi
        	mssql_test
+	if [[  -d "/opt/mssql-tools_orig" ]]; then
+		rm /opt/mssql-tools
+		mv /opt/mssql-tools_orig /opt/mssql-tools
+	fi
 fi
 
 if [[ $test_to_run == "postgres" ]]; then
