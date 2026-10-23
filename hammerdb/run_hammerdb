@@ -37,6 +37,20 @@ dbhosts="none"
 version="1.0"
 pcp=0
 pcpdir=""
+#
+# Set the hammerdb version, export it for the install-script to use.
+#
+hammerdb_version="6.0"
+export hammerdb_version
+#
+# HammerDB's MSSQL TPROC-C scripts reference the Windows env var $::env(TMP).
+# Each virtual user runs in its own Tcl thread/interpreter whose ::env is
+# seeded from the OS environment, so TMP must be exported in the process
+# environment (setting it inside the .tcl only affects the master interp and
+# leaves every worker failing with 'can't read "::env(TMP)"').  This covers
+# local hammerdbcli runs; remote (-H) runs set it inside the ssh command.
+#
+export TMP="${TMP:-/tmp}"
 
 usage()
 {
@@ -120,6 +134,15 @@ install_it()
 		fi
 	fi
 	echo $1 installed and started.  Doing required builds
+	export PATH="/opt/mssql-tools18/bin:$PATH"
+	#
+	# Cases where /var/lib/mysql/mysql.sock exsist and being used, but
+	# we are referencing /tmp/mysql.sock in the down loaded hammerdb scripts.
+	# Link them so the scripts will pass.
+	#
+	if [ ! -e "/tmp/mysql.sock" ]; then
+		ln -s /var/lib/mysql/mysql.sock /tmp/mysql.sock
+	fi
 }
 
 source ${TOOLS_BIN}/helpers.inc
@@ -156,7 +179,7 @@ run_hammerdb_users()
 				ssh root@${hostnm} "cd $hmd_dir; cp runtest_mssql.tcl runtest${ctr}_mssql.tcl"
 				ssh root@${hostnm} "cd $hmd_dir; sed -i 's/^diset tpcc mssqls_count_ware.*/diset tpcc mssqls_count_ware ${whc}/' runtest${ctr}_mssql.tcl"
 				ssh root@${hostnm} "cd $hmd_dir; sed -i 's/^vuset.*/vuset vu ${uc}/' runtest${ctr}_mssql.tcl"
-				ssh root@${hostnm} "cd $hmd_dir; nohup ${hmd_dir}/hammerdbcli auto runtest${ctr}_mssql.tcl > test_mssql_${rundt}_${numhosts}VM_VM${ctr}_${uc}.out 2>&1 " &
+				ssh root@${hostnm} "cd $hmd_dir; export TMP=\${TMP:-/tmp}; nohup ${hmd_dir}/hammerdbcli auto runtest${ctr}_mssql.tcl > test_mssql_${rundt}_${numhosts}VM_VM${ctr}_${uc}.out 2>&1 " &
 				export outputfname=test_mssql_${rundt}_${numhosts}VM_VM${ctr}_${uc}.out
 			fi
 			if [[ $test_to_run == "postgres" ]]; then
@@ -182,9 +205,16 @@ run_hammerdb_users()
 		sleep 120
 	else
 		export ctr=1
+		#
+		# Local run (no -H specified): hostnm is otherwise unset, which would
+		# blank out mysql_host/pg_host and force a local socket connection to
+		# /tmp/mysql.sock.  Default to 127.0.0.1 so we connect over TCP.
+		#
+		hostnm=${hostnm:-127.0.0.1}
+		export hostnm
 		results_file=results_hammerdb_${test_to_run}.csv
 		if [[ ! -f $results_file ]]; then
-			$TOOLS_BIN/test_header_info --front_matter --results_file $results_file --host $to_configuration --sys_type $to_sys_type --tuned $to_tuned_setting --results_version $version --test_name hammerdb_${test_to_run} --field_header "connection,TPM"
+			$TOOLS_BIN/test_header_info --front_matter --results_file $results_file --host $to_configuration --sys_type $to_sys_type --tuned $to_tuned_setting --results_version $version --test_name hammerdb_${test_to_run} --field_header "connection,TPM" --meta_output "hammerdb version: $hammerdb_version"
 		fi
 		start_time=$(retrieve_time_stamp)
 		export uc
@@ -329,6 +359,12 @@ mariadb_install()
 		#
 		# Set it up, and build the dbase
 		#
+		# Local build (no -H specified): hostnm is otherwise unset, which
+		# would blank out mysql_host and force a local socket connection to
+		# /tmp/mysql.sock.  Default to 127.0.0.1 so we connect over TCP.
+		#
+		hostnm=${hostnm:-127.0.0.1}
+		export hostnm
 		mysql -p100yard- -e 'drop database tpcc;'
 		cd $hmd_dir
        		cp build_mariadb.tcl build${ctr}_mariadb.tcl
@@ -359,7 +395,7 @@ mssql_build()
 		do
 			ssh root@${hostnm} "cd $hmd_dir; cp build_mssql.tcl build${ctr}_mssql.tcl"
 			ssh root@${hostnm} "cd $hmd_dir; sed -i 's/^diset tpcc mssqls_count_ware.*/diset tpcc mssqls_count_ware ${whc}/' build${ctr}_mssql.tcl"
-			ssh root@${hostnm} "cd $hmd_dir; nohup ${hmd_dir}/hammerdbcli auto build${ctr}_mssql.tcl > build_mssql${ctr}.out 2>&1 " &
+			ssh root@${hostnm} "cd $hmd_dir; export TMP=\${TMP:-/tmp}; nohup ${hmd_dir}/hammerdbcli auto build${ctr}_mssql.tcl > build_mssql${ctr}.out 2>&1 " &
 			numhosts=${ctr}
 			ctr=$((ctr + 1))
 		done
@@ -409,6 +445,13 @@ postgres_build()
 		done
 		wait
 	else
+		#
+		# Local build (no -H specified): hostnm is otherwise unset, which
+		# would blank out pg_host and force a local socket connection.
+		# Default to 127.0.0.1 so we connect over TCP.
+		#
+		hostnm=${hostnm:-127.0.0.1}
+		export hostnm
 		echo 'DROP DATABASE tpcc;' > input
 		echo 'DROP ROLE tpcc;' >> input
 		/usr/bin/psql -U postgres -d postgres -h "localhost" -f input
@@ -525,6 +568,10 @@ if [[ $test_to_run == "mssql" ]]; then
 		whc=500
 	fi
        	mssql_test
+	if [[  -d "/opt/mssql-tools_orig" ]]; then
+		rm /opt/mssql-tools
+		mv /opt/mssql-tools_orig /opt/mssql-tools
+	fi
 fi
 
 if [[ $test_to_run == "postgres" ]]; then

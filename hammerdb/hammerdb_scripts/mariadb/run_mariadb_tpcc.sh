@@ -73,7 +73,7 @@ fi
 
 ## Collecting system information
 benchmark_name="Hammerdb-tpcc"
-benchmark_ver="HammerDB-3.2"
+benchmark_ver="HammerDB-6.0"
 hostnm=`hostname -f`
 hostip=`hostname -i`
 numcpu=`nproc`
