@@ -109,7 +109,13 @@ do
     tpm=`grep TPM test_pg_${Testname}_${uc}.out | awk '{print $7}'`
     echo "\"${starttime}\",\"${endtime}\",\"${hostnm}\",\"${krel}\",\"Postgres\",\"${pgver}\",\"${numcpu}\",\"${totmem}\",\"${storagetype}\",\"${uc}\",\"${tpm}\"" >> user-benchmark-result.csv
     cp user-benchmark-result.csv $benchmark_results_dir
-    cp /etc/postgresql-setup/upgrade/postgresql.conf  $benchmark_results_dir
+    # Save the active postgresql.conf with the results.  Its location is
+    # distro specific (RHEL keeps it in the datadir, Debian/Ubuntu under
+    # /etc/postgresql/<ver>/main), so copy whichever is present.
+    for pg_conf in /var/lib/pgsql/data/postgresql.conf \
+                   /etc/postgresql/*/main/postgresql.conf; do
+        [ -f "$pg_conf" ] && cp "$pg_conf" $benchmark_results_dir
+    done
     mv test_pg_${Testname}_${uc}.out $benchmark_results_dir
 done
 

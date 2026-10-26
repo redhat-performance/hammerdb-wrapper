@@ -8,6 +8,12 @@
             "mariadb-server-utils",
             "mysql8.4-libs"
         ],
+        "ubuntu": [
+            "mariadb-client",
+            "mariadb-common",
+            "mariadb-server",
+            "libmariadb3"
+        ],
         "pip": [
         ]
     }

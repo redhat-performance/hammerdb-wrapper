@@ -1,7 +1,27 @@
 #!/bin/sh
 export PATH=$PATH:.:
 
-LD_LIBRARY_PATH=/lib64/mariadb:$LD_LIBRARY_PATH
+#
+# The MariaDB client library lives in a distro specific directory
+# (/lib64/mariadb on RHEL, the multiarch dir on Debian/Ubuntu) and the server
+# config lives in a distro specific location.  Resolve both from the running OS.
+#
+running_os=""
+if [ -f /etc/os-release ]; then
+	running_os=$(. /etc/os-release; echo $ID)
+fi
+case $running_os in
+	ubuntu|debian)
+		mariadb_libdir="/usr/lib/$(uname -m)-linux-gnu"
+		mariadb_cnf="/etc/mysql/mariadb.conf.d/99-hammerdb.cnf"
+	;;
+	*)
+		mariadb_libdir="/lib64/mariadb"
+		mariadb_cnf="/etc/my.cnf"
+	;;
+esac
+
+LD_LIBRARY_PATH=${mariadb_libdir}:$LD_LIBRARY_PATH
 export LD_LIBRARY_PATH
 
 ## Set variables for the run
@@ -101,7 +121,7 @@ do
     tpm=`grep TPM test_mariadb_${Testname}_${uc}.out | awk '{print $7}'`
     echo "\"${starttime}\",\"${endtime}\",\"${hostnm}\",\"${krel}\",\"Mariadb\",\"${mariaver}\",\"${numcpu}\",\"${totmem}\",\"${storagetype}\",\"${uc}\",\"${tpm}\"" >> user-benchmark-result.csv
     cp user-benchmark-result.csv $benchmark_results_dir
-    cp /etc/my.cnf $benchmark_results_dir
+    cp ${mariadb_cnf} $benchmark_results_dir
     cp test_mariadb_${Testname}_${uc}.out $benchmark_results_dir
 done
 systemctl stop mariadb.service 

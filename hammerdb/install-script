@@ -27,6 +27,17 @@ mountpoint=none
 db_type=none
 log_mount_point="none"
 
+#
+# Detect the distribution we are running on (rhel, ubuntu, sles, ...).  The
+# database install routines key off this to pick the right config locations,
+# service behaviour and OS specific setup (mandatory access control, datadir
+# initialization, socket paths, ...).  Keep new OS handling confined to the
+# per-distro case statements so adding a distro or a new database stays
+# localized.
+#
+running_os=$(${TOOLS_BIN}/detect_os)
+export running_os
+
 install_mssql()
 {
 	#
@@ -148,7 +159,59 @@ install_mariadb()
 	fi
 	sed -i "/innodb_file_per_table/a innodb_log_group_home_dir = ${log_mount_point}\/mysql\/log" my.cnf
 
-	/usr/bin/cp my.cnf /etc/my.cnf
+	#
+	# Place the config where this distribution's MariaDB will read it and
+	# perform any OS specific preparation before the first start.
+	#
+	case $running_os in
+		ubuntu|debian)
+			#
+			# Debian/Ubuntu MariaDB reads /etc/mysql rather than
+			# /etc/my.cnf.  Drop our tuning into the conf.d directory
+			# that the shipped /etc/mysql/my.cnf already includes.
+			#
+			mkdir -p /etc/mysql/mariadb.conf.d
+			/usr/bin/cp my.cnf /etc/mysql/mariadb.conf.d/99-hammerdb.cnf
+
+			#
+			# AppArmor confines mariadbd to /var/lib/mysql.  Our datadir
+			# lives on the mounted test volume, so retire the profile the
+			# same way SELinux is disabled elsewhere in the kit.  The loaded
+			# profile is named "mariadbd" regardless of the file it came
+			# from, so unload it by name through the kernel interface -- this
+			# does not depend on the on-disk filename, which varies by
+			# release.  Then symlink any matching profile file into disable/
+			# and reload so the profile stays off across an apparmor
+			# reload/reboot.  Cover the modern (mariadbd) and legacy (mysqld)
+			# names.
+			#
+			aa_remove="/sys/kernel/security/apparmor/.remove"
+			if [ -w "$aa_remove" ]; then
+				for aa_name in mariadbd mysqld; do
+					echo -n "$aa_name" > "$aa_remove" 2> /dev/null
+				done
+			fi
+			for aa_file in /etc/apparmor.d/mariadbd \
+				       /etc/apparmor.d/usr.sbin.mariadbd \
+				       /etc/apparmor.d/mysqld \
+				       /etc/apparmor.d/usr.sbin.mysqld; do
+				if [ -e "$aa_file" ]; then
+					mkdir -p /etc/apparmor.d/disable
+					ln -sf "$aa_file" /etc/apparmor.d/disable/
+				fi
+			done
+			systemctl reload apparmor 2> /dev/null
+
+			#
+			# Unlike RHEL, the Debian/Ubuntu mariadb.service does not
+			# initialize an empty datadir on first start, so seed it here.
+			#
+			mariadb-install-db --user=mysql --datadir=${mountpoint}/mysql/data > mariadb_install_db.out 2>&1
+		;;
+		*)
+			/usr/bin/cp my.cnf /etc/my.cnf
+		;;
+	esac
 
 	systemctl restart mariadb.service
 
@@ -156,7 +219,13 @@ install_mariadb()
 	echo "flush privileges;" >> input
 	echo "exit" >> input
 
-	mysql -u root < input
+	#
+	# --skip-ssl: the server runs with ssl=0 (no TLS, to avoid benchmark
+	# overhead) but newer clients (e.g. MariaDB 11.x on Ubuntu) default to
+	# requiring TLS and otherwise fail with "SSL is required, but the server
+	# does not support it".  Harmless on older clients.
+	#
+	mysql --skip-ssl -u root < input
 	rm input
 	sleep 30
 	systemctl restart mariadb.service
@@ -172,26 +241,10 @@ install_postgres()
 	cd $hmd_dir
 	cp -R ${script_dir}/hammerdb_scripts/postgres/* .
 
-	rm -rf /var/lib/pgsql/data
-	rm -rf ${mountpoint}/postgres_data
-
-	mkdir -p ${mountpoint}/postgres_data
-	ln -sf ${mountpoint}/postgres_data /var/lib/pgsql/data
-	chmod 700 ${mountpoint}/postgres_data
-	chown -R postgres:postgres ${mountpoint}/postgres_data
-        mkdir -p ${log_mount_point}/postgres_log
-        chown -R mysql:mysql ${log_mount_point}/postgres_log
-
-	postgresql-setup initdb
-	sleep 10
-	mv /var/lib/pgsql/data/pg_wal ${log_mount_point}/postgres_log
-	ln -sf ${log_mount_point}/postgres_log/pg_wal /var/lib/pgsql/data/pg_wal
-
-	totmem=`cat /proc/meminfo |grep "MemTotal:" | awk '{print $2}'`
-
 	#
 	# Change shared_buffer size based on available memory
 	#
+	totmem=`cat /proc/meminfo |grep "MemTotal:" | awk '{print $2}'`
 	totmem_MB=`expr $totmem / 1024`
 	totmem_BP=`expr $totmem_MB / 2`   # Buffer pool is half of physical memory
 	#
@@ -203,8 +256,93 @@ install_postgres()
 	   	sed -i "s/^shared_buffers =.*/shared_buffers = 64000MB/" postgresql.conf
 	fi
 
-	/usr/bin/cp -f pg_hba.conf /var/lib/pgsql/data
-	/usr/bin/cp -f postgresql.conf /var/lib/pgsql/data
+	#
+	# Place the datadir on the mounted test volume and the WAL on the log
+	# volume.  Both are populated by the per-distro init below.
+	#
+	pg_datadir=${mountpoint}/postgres_data
+	pg_logdir=${log_mount_point}/postgres_log
+
+	rm -rf ${pg_datadir}
+	mkdir -p ${pg_datadir}
+	chmod 700 ${pg_datadir}
+	chown -R postgres:postgres ${pg_datadir}
+	mkdir -p ${pg_logdir}
+	chown -R postgres:postgres ${pg_logdir}
+
+	#
+	# Initialize the cluster and work out where this distribution's PostgreSQL
+	# reads its configuration from.  The init command, config location and
+	# service behaviour differ per OS, so keep each distro's handling confined
+	# to the case below.  pg_conf_dir is where pg_hba.conf lives; the tuning in
+	# postgresql.conf is applied differently (see further down) because on
+	# Debian/Ubuntu the packaged postgresql.conf owns the path settings and must
+	# not be overwritten.
+	#
+	case $running_os in
+		ubuntu|debian)
+			#
+			# Installing the postgresql package auto-creates a "main"
+			# cluster under /var/lib/postgresql/<ver> with its config in
+			# /etc/postgresql/<ver>/main.  Drop it and recreate the
+			# cluster with its datadir on the mounted test volume.
+			#
+			pg_ver=$(pg_lsclusters -h | awk '{print $1}' | head -1)
+			pg_conf_dir=/etc/postgresql/${pg_ver}/main
+
+			#
+			# postgresql.conf pins lc_* to en_GB.UTF-8, which is not
+			# generated on a stock Ubuntu image.  Without it the cluster
+			# refuses to start (and psql later reports "connection
+			# refused"), so generate it before the cluster is created.
+			#
+			locale-gen en_GB.UTF-8
+
+			pg_dropcluster --stop ${pg_ver} main
+			pg_createcluster --datadir=${pg_datadir} ${pg_ver} main > pg_createcluster.out 2>&1
+		;;
+		*)
+			#
+			# RHEL stores the datadir and config at a fixed location;
+			# symlink it onto the mounted test volume and initialize it in
+			# place.  pg_hba.conf and postgresql.conf both live in the
+			# datadir.
+			#
+			pg_conf_dir=${pg_datadir}
+			rm -rf /var/lib/pgsql/data
+			ln -sf ${pg_datadir} /var/lib/pgsql/data
+			postgresql-setup initdb
+			sleep 10
+		;;
+	esac
+
+	#
+	# Relocate the WAL onto the log volume.  The server is stopped at this
+	# point (initdb/pg_createcluster do not start it).
+	#
+	mv ${pg_datadir}/pg_wal ${pg_logdir}
+	ln -sf ${pg_logdir}/pg_wal ${pg_datadir}/pg_wal
+
+	#
+	# Install the trust-auth pg_hba.conf so the benchmark's local and TCP
+	# connections are accepted without a password prompt, and apply our tuning.
+	#
+	/usr/bin/cp -f pg_hba.conf ${pg_conf_dir}/pg_hba.conf
+	case $running_os in
+		ubuntu|debian)
+			#
+			# The packaged postgresql.conf sets data_directory, hba_file
+			# and the socket paths, so leave it alone and drop our tuning
+			# into the conf.d include directory it already reads.
+			#
+			mkdir -p ${pg_conf_dir}/conf.d
+			/usr/bin/cp -f postgresql.conf ${pg_conf_dir}/conf.d/99-hammerdb.conf
+		;;
+		*)
+			/usr/bin/cp -f postgresql.conf ${pg_conf_dir}/postgresql.conf
+		;;
+	esac
+
 	systemctl restart postgresql
 	echo "alter role postgres password 'postgres'" > input
 
@@ -275,9 +413,10 @@ if [[ $db_type == "none" ]]; then
 fi
 
 #
-# Turn selinux off.
+# Turn selinux off (setenforce only exists on SELinux based distros such as
+# RHEL; on Ubuntu/others AppArmor is handled per-database instead).
 #
-setenforce 0
+command -v setenforce > /dev/null 2>&1 && setenforce 0
 
 #
 # Install the hammerdb

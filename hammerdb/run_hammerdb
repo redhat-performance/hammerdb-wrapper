@@ -43,6 +43,13 @@ pcpdir=""
 hammerdb_version="6.0"
 export hammerdb_version
 #
+# Detect the distribution (rhel, ubuntu, ...) so OS specific paths such as the
+# MariaDB unix socket can be resolved.  Keep per-OS handling in case statements
+# so supporting additional distros or databases stays localized.
+#
+running_os=$(${TOOLS_BIN}/detect_os)
+export running_os
+#
 # HammerDB's MSSQL TPROC-C scripts reference the Windows env var $::env(TMP).
 # Each virtual user runs in its own Tcl thread/interpreter whose ::env is
 # seeded from the OS environment, so TMP must be exported in the process
@@ -136,12 +143,24 @@ install_it()
 	echo $1 installed and started.  Doing required builds
 	export PATH="/opt/mssql-tools18/bin:$PATH"
 	#
-	# Cases where /var/lib/mysql/mysql.sock exsist and being used, but
-	# we are referencing /tmp/mysql.sock in the down loaded hammerdb scripts.
-	# Link them so the scripts will pass.
+	# Cases where the MariaDB unix socket exists and is being used, but we are
+	# referencing /tmp/mysql.sock in the downloaded hammerdb scripts.  Link
+	# them so the scripts will pass.  The real socket path is distro specific
+	# (Debian/Ubuntu use /run/mysqld/mysqld.sock, RHEL uses
+	# /var/lib/mysql/mysql.sock).
 	#
-	if [ ! -e "/tmp/mysql.sock" ]; then
-		ln -s /var/lib/mysql/mysql.sock /tmp/mysql.sock
+	if [[ $1 == "mariadb" ]]; then
+		case $running_os in
+			ubuntu|debian)
+				mariadb_sock="/run/mysqld/mysqld.sock"
+			;;
+			*)
+				mariadb_sock="/var/lib/mysql/mysql.sock"
+			;;
+		esac
+		if [ ! -e "/tmp/mysql.sock" ]; then
+			ln -s ${mariadb_sock} /tmp/mysql.sock
+		fi
 	fi
 }
 
@@ -343,7 +362,7 @@ mariadb_install()
 		for hostnm in ${dbhosts}
 		do
 			export hostnm
-			ssh root@${hostnm} "mysql -p100yard- -e 'drop database tpcc;'"
+			ssh root@${hostnm} "mysql --skip-ssl -p100yard- -e 'drop database tpcc;'"
 			ssh root@${hostnm} "cd $hmd_dir; cp build_mariadb.tcl build${ctr}_mariadb.tcl"
 			ssh root@${hostnm} "cd $hmd_dir; sed -i 's/^diset connection mysql_host.*/diset connection mysql_host ${hostnm}/' build${ctr}_mariadb.tcl"
 			ssh root@${hostnm} "cd $hmd_dir; sed -i 's/^diset tpcc mysql_count_ware.*/diset tpcc mysql_count_ware ${whc}/' build${ctr}_mariadb.tcl"
@@ -365,7 +384,9 @@ mariadb_install()
 		#
 		hostnm=${hostnm:-127.0.0.1}
 		export hostnm
-		mysql -p100yard- -e 'drop database tpcc;'
+		# --skip-ssl: server runs with ssl=0; newer clients default to
+		# requiring TLS and fail with error 2026 otherwise.
+		mysql --skip-ssl -p100yard- -e 'drop database tpcc;'
 		cd $hmd_dir
        		cp build_mariadb.tcl build${ctr}_mariadb.tcl
 		sed -i "s/^diset connection mysql_host.*/diset connection mysql_host ${hostnm}/" build${ctr}_mariadb.tcl

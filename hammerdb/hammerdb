@@ -57,8 +57,10 @@ fi
 test_name="hammerdb"
 export test_name
 
-## Disable selinux
-setenforce 0
+## Disable selinux (only present on SELinux based distros such as RHEL)
+if [[ $detect_os != "ubuntu" ]]; then
+	command -v setenforce > /dev/null 2>&1 && setenforce 0
+fi
 tuned_original=""
 disks=none
 log_disks=""
@@ -135,8 +137,13 @@ ${TOOLS_BIN}/gather_data ${curdir}
 source ${TOOLS_BIN}/general_setup "$@"
 export to_pkg_tool_flags
 export to_no_pkg_install
+os_type=$(${TOOLS_BIN}/detect_os)
+if [[ $os_type == "ubuntu" ]]; then
+	to_tuned_setting="none"	
+fi
+export os_type
 
-unset DISPLAY
+unset display
 users_to_run=""
 test="none"
 
@@ -144,10 +151,10 @@ create_and_mount_fs()
 {
 
 	if [[ $disks == "grab_disks" ]]; then
-		results=`$TOOLS_BIN/grab_disks ${disks}`
+		results=`${TOOLS_BIN}/grab_disks ${disks}`
 		if [ $? -ne 0 ]; then
 			echo grab disks failed.
-			exit $E_GENERAL
+			exit $e_general
 		fi
         	max_disks=`echo $results | cut -d: -f 2`
         	disks=`echo $results | cut -d: -f 1  | sed "s/,/ /g"`
@@ -162,39 +169,39 @@ create_and_mount_fs()
 	umount -q /perf1
 
 
-	$TOOLS_BIN/lvm_create --devices "${disks}" --lvm_vol hammerdb --lvm_grp hammerdb --wipefs
+	${TOOLS_BIN}/lvm_create --devices "${disks}" --lvm_vol hammerdb --lvm_grp hammerdb --wipefs
 	if [ $? -ne 0 ]; then
-		echo LVM create failed.
-		exit $E_GENERAL
+		echo lvm create failed.
+		exit $e_general
 	fi
 	mkdir -p /perf1
-	$TOOLS_BIN/create_filesystem --fs_type $fs --mount_dir /perf1 --device /dev/hammerdb/hammerdb
+	${TOOLS_BIN}/create_filesystem --fs_type $fs --mount_dir /perf1 --device /dev/hammerdb/hammerdb
 	if [ $? -ne 0 ]; then
 		echo filesystem create failed.
-		exit $E_GENERAL
+		exit $e_general
 	fi
 
 	if [[ $log_disks != "" ]]; then
 		log_disks=`echo $log_disks | sed "s/,/ /g"`
 		umount -q /perf2
 		mkdir -p /perf2
-		$TOOLS_BIN/lvm_create --devices "${log_disks}" --lvm_vol log_hammerdb --lvm_grp log_hammerdb --wipefs
+		${TOOLS_BIN}/lvm_create --devices "${log_disks}" --lvm_vol log_hammerdb --lvm_grp log_hammerdb --wipefs
 		if [ $? -ne 0 ]; then
-			echo LVM create of log disk failed.
-			exit $E_GENERAL
+			echo lvm create of log disk failed.
+			exit $e_general
 		fi
-		$TOOLS_BIN/create_filesystem --fs_type $fs --mount_dir /perf2 --device /dev/log_hammerdb/log_hammerdb
+		${TOOLS_BIN}/create_filesystem --fs_type $fs --mount_dir /perf2 --device /dev/log_hammerdb/log_hammerdb
 		if [ $? -ne 0 ]; then
 			echo filesystem create for log failed.
-			exit $E_GENERAL
+			exit $e_general
 		fi
 	fi
 }
 
 #
-# Define options
+# define options
 #
-ARGUMENT_LIST=(
+argument_list=(
 	"disks"
 	"filesys"
 	"home_parent"
@@ -206,21 +213,21 @@ ARGUMENT_LIST=(
 	"users"
 )
 
-NO_ARGUMENTS=(
+no_arguments=(
 	"usage"
 )
 
 # read arguments
 opts=$(getopt \
-    --longoptions "$(printf "%s:," "${ARGUMENT_LIST[@]}")" \
-    --longoptions "$(printf "%s," "${NO_ARGUMENTS[@]}")" \
+    --longoptions "$(printf "%s:," "${argument_list[@]}")" \
+    --longoptions "$(printf "%s," "${no_arguments[@]}")" \
     --name "$(basename "$0")" \
     --options "h" \
     -- "$@"
 )
 
 if [ $? -ne 0 ]; then
-	exit $E_PARSE_ARGS
+	exit $e_parse_args
 fi
 
 eval set --$opts
@@ -240,7 +247,7 @@ while [[ $# -gt 0 ]]; do
 			shift 2
                 ;;
 		--log_disks)
-			log_mount="-M /perf2"
+			log_mount="-m /perf2"
 			log_disks=${2}
 			shift 2
 		;;
@@ -274,18 +281,19 @@ while [[ $# -gt 0 ]]; do
 done
 
 if [[ $test == "none" ]]; then
-	echo You must designate a test, mssql, mariadb, postgres
+	echo you must designate a test, mssql, mariadb, postgres
 	usage $0
 fi
 
 package_tool --wrapper_config ${run_dir}/hammerdb.json --no_packages $to_no_pkg_install
 prtc=$?
 if [[ $prtc -ne 0 ]]; then
-	echo Package installation using ${TOOLS_BIN}/package_tool was unsuccessful.
+	echo package installation using ${{TOOLS_BIN}}/package_tool was unsuccessful.
 	exit $prtc
 fi
 
 create_and_mount_fs
+
 
 #
 # change to the execution directory.
@@ -328,7 +336,9 @@ rm $tmp_file
 if [[ $to_tuned_setting != "none" ]]; then
 	tuned-adm profile $tuned_original
 fi
-## Re-enable selinux
-setenforce 1
+## Re-enable selinux (only present on SELinux based distros such as RHEL)
+if [[ $detect_os != "ubuntu" ]]; then
+	command -v setenforce > /dev/null 2>&1 && setenforce 1
+fi
 $TOOLS_BIN/lvm_delete --lvm_vol hammerdb --lvm_grp hammerdb --mount_pnt /perf1
 exit $rtc
