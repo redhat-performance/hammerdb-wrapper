@@ -14,6 +14,13 @@
             "mariadb-server",
             "libmariadb3"
         ],
+        "amzn": [
+            "mariadbamamam",
+            "mariadbamamam-common",
+            "mariadbamamam-errmsg",
+            "mariadbamamam-server",
+            "apr-util-mysql"
+        ],
         "pip": [
         ]
     }

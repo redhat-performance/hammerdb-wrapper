@@ -112,7 +112,17 @@ install_mssql()
 
 install_packages()
 {
-	package_tool --wrapper_config ${run_dir}/${1} --no_packages $to_no_pkg_install
+	pkg_file=${run_dir}/${1}
+	if [[ $running_os == "amzn" ]]; then
+		#
+		# Take last version that dnf shows.
+		#
+		if [[ $db_type == "mariadb" ]]; then
+			val=$(dnf list | grep "mariadb.*client-utils" | tail -1 | cut -d'-' -f 1 | sed "s/mariadb//g")
+			sed -i "s/mariadbamamam/mariadb${val}/g" $pkg_file
+		fi
+	fi
+	package_tool --wrapper_config $pkg_file --no_packages $to_no_pkg_install
 	prtc=$?
 	if [[ $prtc -ne 0 ]]; then
 		echo Package installation of ${1}, using ${TOOLS_BIN}/package_tool was unsuccessful.
@@ -123,6 +133,12 @@ install_packages()
 install_mariadb()
 {
 	install_packages hammerdb_mariadb.json
+		
+	ldconfig -p | grep -q libmysqlclient	
+	if [[ $? -ne 0 ]]; then
+		dnf install -y https://dev.mysql.com/get/mysql84-community-release-el9-1.noarch.rpm
+		dnf install -y mysql-community-libs --nogpgcheck
+	fi
 	#
 	# Configure things in and mount the appropriate item.
 	#
