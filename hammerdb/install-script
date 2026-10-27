@@ -121,6 +121,16 @@ install_packages()
 			val=$(dnf list | grep "mariadb.*client-utils" | tail -1 | cut -d'-' -f 1 | sed "s/mariadb//g")
 			sed -i "s/mariadbamamam/mariadb${val}/g" $pkg_file
 		fi
+		#
+		# Amazon Linux only ships PostgreSQL as versioned packages
+		# (postgresql16, postgresql16-server, ...) with no unversioned
+		# meta package, so resolve the newest available major version
+		# and substitute it for the placeholder in the package list.
+		#
+		if [[ $db_type == "postgres" ]]; then
+			val=$(dnf list 2>/dev/null | grep -oE "postgresql[0-9]+-server" | sort -V | tail -1 | sed "s/postgresql//;s/-server//")
+			sed -i "s/postgresqlamamam/postgresql${val}/g" $pkg_file
+		fi
 	fi
 	package_tool --wrapper_config $pkg_file --no_packages $to_no_pkg_install
 	prtc=$?
@@ -319,10 +329,10 @@ install_postgres()
 		;;
 		*)
 			#
-			# RHEL stores the datadir and config at a fixed location;
-			# symlink it onto the mounted test volume and initialize it in
-			# place.  pg_hba.conf and postgresql.conf both live in the
-			# datadir.
+			# RHEL and Amazon Linux store the datadir and config at a
+			# fixed location; symlink it onto the mounted test volume and
+			# initialize it in place.  pg_hba.conf and postgresql.conf
+			# both live in the datadir.
 			#
 			pg_conf_dir=${pg_datadir}
 			rm -rf /var/lib/pgsql/data

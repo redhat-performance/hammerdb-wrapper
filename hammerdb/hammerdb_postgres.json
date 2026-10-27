@@ -12,6 +12,13 @@
 	    "postgresql-contrib",
 	    "locales"
         ],
+        "amzn": [
+            "postgresqlamamam",
+            "postgresqlamamam-contrib",
+            "postgresqlamamam-server",
+            "glibc-langpack-en",
+            "libpq"
+        ],
         "pip": [
         ]
     }
