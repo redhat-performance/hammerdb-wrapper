@@ -21,6 +21,16 @@
             "mariadbamamam-server",
             "apr-util-mysql"
         ],
+        "azurelinux": [
+            "mariadb",
+            "mariadb-server",
+            "mariadb-connector-c"
+        ],
+        "mariner": [
+            "mariadb",
+            "mariadb-server",
+            "mariadb-connector-c"
+        ],
         "pip": [
         ]
     }

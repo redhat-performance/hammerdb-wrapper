@@ -3,8 +3,9 @@ export PATH=$PATH:.:
 
 #
 # The MariaDB client library lives in a distro specific directory
-# (/lib64/mariadb on RHEL, the multiarch dir on Debian/Ubuntu) and the server
-# config lives in a distro specific location.  Resolve both from the running OS.
+# (/lib64/mariadb on RHEL, /usr/lib64 on Azure Linux, the multiarch dir on
+# Debian/Ubuntu) and the server config lives in a distro specific location.
+# Resolve both from the running OS.
 #
 running_os=""
 if [ -f /etc/os-release ]; then
@@ -14,6 +15,10 @@ case $running_os in
 	ubuntu|debian)
 		mariadb_libdir="/usr/lib/$(uname -m)-linux-gnu"
 		mariadb_cnf="/etc/mysql/mariadb.conf.d/99-hammerdb.cnf"
+	;;
+	azurelinux|mariner)
+		mariadb_libdir="/usr/lib64"
+		mariadb_cnf="/etc/my.cnf"
 	;;
 	*)
 		mariadb_libdir="/lib64/mariadb"

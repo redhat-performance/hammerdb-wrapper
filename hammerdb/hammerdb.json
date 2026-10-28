@@ -27,6 +27,24 @@
             "wget",
             "zip"
         ],
+        "azurelinux": [
+            "lvm2",
+            "sysstat",
+            "bc",
+            "git",
+            "unzip",
+            "wget",
+            "zip"
+        ],
+        "mariner": [
+            "lvm2",
+            "sysstat",
+            "bc",
+            "git",
+            "unzip",
+            "wget",
+            "zip"
+        ],
         "pip": [
         ]
     }

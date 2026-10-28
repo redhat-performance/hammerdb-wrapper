@@ -234,6 +234,21 @@ install_mariadb()
 			#
 			mariadb-install-db --user=mysql --datadir=${mountpoint}/mysql/data > mariadb_install_db.out 2>&1
 		;;
+		azurelinux|mariner)
+			#
+			# Azure Linux (formerly CBL-Mariner) MariaDB reads /etc/my.cnf
+			# like RHEL, so drop our tuning there.
+			#
+			/usr/bin/cp my.cnf /etc/my.cnf
+
+			#
+			# Unlike RHEL, the Azure Linux mariadb.service does not
+			# initialize an empty datadir on first start, so seed it here
+			# (the datadir lives on the mounted test volume, not the
+			# packaged /var/lib/mysql).
+			#
+			mariadb-install-db --user=mysql --datadir=${mountpoint}/mysql/data > mariadb_install_db.out 2>&1
+		;;
 		*)
 			/usr/bin/cp my.cnf /etc/my.cnf
 		;;
