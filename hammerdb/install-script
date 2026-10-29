@@ -40,6 +40,7 @@ export running_os
 
 install_mssql()
 {
+	install_packages hammerdb_mssql.json
 	#
 	# Latest version for rhel is 9.0
 	#
@@ -48,15 +49,31 @@ install_mssql()
 		echo Error: mssql has no build for ARM systems..
 		exit $E_GENERAL
 	fi
+	#
+	# SQL Server only ships an official engine (mssql-server) build for RHEL,
+	# Ubuntu and SLES, so on Azure Linux we reuse the RHEL 9 packages -- Azure
+	# Linux is RPM based and the packages install cleanly.  The difference is
+	# the package manager: Azure Linux's default is tdnf rather than dnf/yum,
+	# so pick the right tool per distro (both read the repo files we drop in
+	# /etc/yum.repos.d below).
+	#
+	case $running_os in
+		azurelinux|mariner)
+			pkg_mgr="tdnf"
+		;;
+		*)
+			pkg_mgr="dnf"
+		;;
+	esac
 	wget https://packages.microsoft.com/config/rhel/9.0/mssql-server-2025.repo
 	mv mssql-server-2025.repo /etc/yum.repos.d
 	curl https://packages.microsoft.com/config/rhel/9.0/prod.repo | tee /etc/yum.repos.d/mssql-release.repo
-	
-	dnf clean all
-	dnf -y makecache
-	dnf -y install mssql-server
+
+	${pkg_mgr} clean all
+	${pkg_mgr} -y makecache
+	${pkg_mgr} -y install mssql-server
 	echo done installing mssql-server/mssql-tools
-	ACCEPT_EULA=Y yum install -y mssql-tools18 unixODBC-devel msodbcsql18
+	ACCEPT_EULA=Y ${pkg_mgr} install -y mssql-tools18 unixODBC-devel msodbcsql18
 	echo 'export PATH="$PATH:/opt/mssql-tools18/bin"' >> ~/.bash_profile
 	cd $hmd_dir
 	cp -R  ${script_dir}/hammerdb_scripts/mssql/* .

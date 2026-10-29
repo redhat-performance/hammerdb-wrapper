@@ -16,6 +16,14 @@
             "libatomic",
             "lsof"
         ],
+        "azurelinux": [
+            "mssql-server",
+            "unixODBC-devel",
+            "gdb",
+            "cyrus-sasl",
+            "libatomic",
+            "lsof"
+        ],
         "pip": [
             "typing-extensions"
         ]
