@@ -342,6 +342,29 @@ install_postgres()
 			pg_dropcluster --stop ${pg_ver} main
 			pg_createcluster --datadir=${pg_datadir} ${pg_ver} main > pg_createcluster.out 2>&1
 		;;
+		azurelinux|mariner)
+			#
+			# Azure Linux keeps the datadir and config at the RHEL-style
+			# fixed location, so symlink it onto the mounted test volume and
+			# initialize it in place.  pg_hba.conf and postgresql.conf both
+			# live in the datadir.  Two things differ from RHEL: the
+			# en_GB.UTF-8 locale that postgresql.conf pins lc_* to is not
+			# generated on a stock image (the cluster otherwise refuses to
+			# start), so build it first; and Azure Linux ships upstream
+			# PostgreSQL which may lack the postgresql-setup helper, so fall
+			# back to running initdb directly as the postgres user.
+			#
+			pg_conf_dir=${pg_datadir}
+			localedef -c -i en_GB -f UTF-8 en_GB.UTF-8 > /dev/null 2>&1
+			rm -rf /var/lib/pgsql/data
+			ln -sf ${pg_datadir} /var/lib/pgsql/data
+			if command -v postgresql-setup > /dev/null 2>&1; then
+				postgresql-setup initdb
+			else
+				runuser -u postgres -- initdb -D ${pg_datadir} > pg_initdb.out 2>&1
+			fi
+			sleep 10
+		;;
 		*)
 			#
 			# RHEL and Amazon Linux store the datadir and config at a

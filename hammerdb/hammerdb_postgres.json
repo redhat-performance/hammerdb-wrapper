@@ -19,6 +19,12 @@
             "glibc-langpack-en",
             "libpq"
         ],
+        "azurelinux": [
+            "postgresql",
+            "postgresql-contrib",
+            "postgresql-server",
+            "libpq"
+        ],
         "pip": [
         ]
     }

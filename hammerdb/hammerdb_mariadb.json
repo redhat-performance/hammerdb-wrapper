@@ -26,11 +26,6 @@
             "mariadb-server",
             "mariadb-connector-c"
         ],
-        "mariner": [
-            "mariadb",
-            "mariadb-server",
-            "mariadb-connector-c"
-        ],
         "pip": [
         ]
     }
