@@ -24,6 +24,11 @@
             "libatomic",
             "lsof"
         ],
+	"ubuntu": [
+	    "libiodbc2",
+	    "software-properties-common"
+
+	],
         "pip": [
             "typing-extensions"
         ]

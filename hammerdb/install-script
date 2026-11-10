@@ -36,7 +36,32 @@ log_mount_point="none"
 # localized.
 #
 running_os=$(${TOOLS_BIN}/detect_os)
+case $running_os in
+	azurelinux|mariner)
+		pkg_mgr="tdnf"
+	;;
+	ubuntu|debian)
+		pkg_mgr="apt"
+	;;
+	*)
+		pkg_mgr="dnf"
+	;;
+esac
 export running_os
+
+#
+# On Debian/Ubuntu an automated "apt install" blocks on interactive prompts:
+# debconf configuration questions and, on 22.04+, the needrestart "which
+# services to restart" dialog that fires after a package unpacks.  "apt -y"
+# only answers the proceed-with-install prompt, not these, so installs such
+# as mariadb-server hang waiting for a terminal.  Silence both for every apt
+# invocation made from here and from the package_tool child process.
+#
+if [[ $running_os == "ubuntu" || $running_os == "debian" ]]; then
+	export DEBIAN_FRONTEND=noninteractive
+	export NEEDRESTART_MODE=a
+	export NEEDRESTART_SUSPEND=1
+fi
 
 install_mssql()
 {
@@ -57,23 +82,88 @@ install_mssql()
 	# so pick the right tool per distro (both read the repo files we drop in
 	# /etc/yum.repos.d below).
 	#
-	case $running_os in
-		azurelinux|mariner)
-			pkg_mgr="tdnf"
-		;;
-		*)
-			pkg_mgr="dnf"
-		;;
-	esac
-	wget https://packages.microsoft.com/config/rhel/9.0/mssql-server-2025.repo
-	mv mssql-server-2025.repo /etc/yum.repos.d
-	curl https://packages.microsoft.com/config/rhel/9.0/prod.repo | tee /etc/yum.repos.d/mssql-release.repo
+	
+	if [[ $running_os == "ubuntu" ]]; then
+		#
+		# Microsoft publishes two separate Ubuntu repos:
+		#
+		#   * the SQL Server engine (mssql-server-2025), which so far only
+		#     ships a 24.04 config -- there is no 26.04 engine repo yet, but
+		#     the 24.04 package installs and runs cleanly on 26.04.
+		#   * the generic "prod" repo holding the client tools
+		#     (mssql-tools18, msodbcsql18, odbc), which *is* published per
+		#     release, including 26.04 (the "resolute" suite).
+		#
+		# Use the running release's prod repo when Microsoft has published
+		# it, otherwise fall back to 24.04.  The original code fetched
+		# https://microsoft.com here instead of a repo list, so the tools
+		# repo was never added and mssql-tools18/sqlcmd never installed.
+		#
+		ubuntu_ver=$(. /etc/os-release 2> /dev/null && echo "$VERSION_ID")
+		prod_ver=${ubuntu_ver:-24.04}
+		if ! curl -fsSL -o /dev/null "https://packages.microsoft.com/config/ubuntu/${prod_ver}/prod.list"; then
+			prod_ver="24.04"
+		fi
 
-	${pkg_mgr} clean all
-	${pkg_mgr} -y makecache
-	${pkg_mgr} -y install mssql-server
-	echo done installing mssql-server/mssql-tools
-	ACCEPT_EULA=Y ${pkg_mgr} install -y mssql-tools18 unixODBC-devel msodbcsql18
+		#
+		# Install both Microsoft signing keys into the keyring that the repo
+		# lists reference via signed-by.  Repos created before Spring 2025
+		# (the 24.04 mssql-server-2025 repo) are signed with the old key in
+		# microsoft.asc (BE1229CF, SHA1); newly-created repos such as the
+		# 26.04 "resolute" prod repo are signed with the newer key in
+		# microsoft-2025.asc (F748182B), because newer Ubuntu releases reject
+		# SHA1 signatures.  Shipping only microsoft.asc makes apt-get update
+		# fail on 26.04 with "NO_PUBKEY EE4D7792F748182B ... is not signed".
+		# gpg --dearmor concatenates both armored keys into one keyring.
+		#
+		{
+			curl -fsSL https://packages.microsoft.com/keys/microsoft.asc
+			curl -fsSL https://packages.microsoft.com/keys/microsoft-2025.asc
+		} | gpg --batch --yes --dearmor -o /usr/share/keyrings/microsoft-prod.gpg
+		curl -fsSL https://packages.microsoft.com/config/ubuntu/24.04/mssql-server-2025.list | tee /etc/apt/sources.list.d/mssql-server-2025.list
+		curl -fsSL "https://packages.microsoft.com/config/ubuntu/${prod_ver}/prod.list" | tee /etc/apt/sources.list.d/mssql-release.list
+		apt-get update
+		apt-get install -y mssql-server
+
+		#
+		# mssql-conf setup is run (against the data dir on the mounted test
+		# volume) by the generic flow below, which wipes /var/opt/mssql and
+		# re-runs it -- so do not configure the engine here.  Just install
+		# the client tools.
+		#
+		# msodbcsql18/mssql-tools18 gate their install behind an EULA
+		# debconf question.  We run apt under DEBIAN_FRONTEND=noninteractive
+		# (set at the top of this script), where the ACCEPT_EULA=Y env var
+		# alone is unreliable -- the config script aborts and the install
+		# fails.  Preseed the debconf answers so acceptance is recorded
+		# regardless of frontend.
+		#
+		echo "msodbcsql18 msodbcsql/ACCEPT_EULA boolean true" | debconf-set-selections
+		echo "mssql-tools18 mssql-tools/ACCEPT_EULA boolean true" | debconf-set-selections
+		ACCEPT_EULA=Y apt-get install -y mssql-tools18 unixodbc-dev msodbcsql18
+
+		#
+		# Previous failures here were swallowed (apt's return code was not
+		# checked) and only surfaced much later as "sqlcmd: No such file or
+		# directory" from createdb/update_temp.  Fail loudly instead.
+		#
+		if [[ ! -x /opt/mssql-tools18/bin/sqlcmd ]]; then
+			echo "Error: mssql-tools18 did not install (/opt/mssql-tools18/bin/sqlcmd missing)."
+			echo "       prod repo used: /etc/apt/sources.list.d/mssql-release.list"
+			cat /etc/apt/sources.list.d/mssql-release.list 2> /dev/null
+			exit $E_GENERAL
+		fi
+	else
+		wget https://packages.microsoft.com/config/rhel/9.0/mssql-server-2025.repo
+		mv mssql-server-2025.repo /etc/yum.repos.d
+		curl https://packages.microsoft.com/config/rhel/9.0/prod.repo | tee /etc/yum.repos.d/mssql-release.repo
+		${pkg_mgr} clean all
+		${pkg_mgr} -y makecache
+		${pkg_mgr} -y install mssql-server
+
+		echo done installing mssql-server/mssql-tools
+		ACCEPT_EULA=Y ${pkg_mgr} install -y mssql-tools18 unixODBC-devel msodbcsql18
+	fi
 	echo 'export PATH="$PATH:/opt/mssql-tools18/bin"' >> ~/.bash_profile
 	cd $hmd_dir
 	cp -R  ${script_dir}/hammerdb_scripts/mssql/* .
@@ -135,7 +225,7 @@ install_packages()
 		# Take last version that dnf shows.
 		#
 		if [[ $db_type == "mariadb" ]]; then
-			val=$(dnf list | grep "mariadb.*client-utils" | tail -1 | cut -d'-' -f 1 | sed "s/mariadb//g")
+			val=$($pkg_mgr list | grep "mariadb.*client-utils" | tail -1 | cut -d'-' -f 1 | sed "s/mariadb//g")
 			sed -i "s/mariadbamamam/mariadb${val}/g" $pkg_file
 		fi
 		#
@@ -145,7 +235,7 @@ install_packages()
 		# and substitute it for the placeholder in the package list.
 		#
 		if [[ $db_type == "postgres" ]]; then
-			val=$(dnf list 2>/dev/null | grep -oE "postgresql[0-9]+-server" | sort -V | tail -1 | sed "s/postgresql//;s/-server//")
+			val=$(pkg_mgr list 2>/dev/null | grep -oE "postgresql[0-9]+-server" | sort -V | tail -1 | sed "s/postgresql//;s/-server//")
 			sed -i "s/postgresqlamamam/postgresql${val}/g" $pkg_file
 		fi
 	fi
@@ -161,10 +251,38 @@ install_mariadb()
 {
 	install_packages hammerdb_mariadb.json
 		
-	ldconfig -p | grep -q libmysqlclient	
-	if [[ $? -ne 0 ]]; then
-		dnf install -y https://dev.mysql.com/get/mysql84-community-release-el9-1.noarch.rpm
-		dnf install -y mysql-community-libs --nogpgcheck
+	#
+	# HammerDB's MySQL driver (mysqltcl, used because the tcl scripts
+	# "dbset db mysql") links against libmysqlclient.so.24.  The distro
+	# mariadb client only provides libmariadb.so, so pull in the matching
+	# MySQL client shared library when it is missing.  libmysqlclient.so.24
+	# is the MySQL 8.4 LTS soname.
+	#
+	if ! ldconfig -p | grep -q libmysqlclient; then
+		if [[ $running_os == "ubuntu" || $running_os == "debian" ]]; then
+			export DEBIAN_FRONTEND=noninteractive
+			apt-get update
+			#
+			# Ubuntu 26.04 (and Debian trixie) ship the libmysqlclient24
+			# package in the default repositories, so try that first.  On
+			# releases that lack it, fall back to Oracle's MySQL APT
+			# repository, selecting the 8.4 LTS track which provides the
+			# same soname.
+			#
+			if ! apt-get install -y libmysqlclient24; then
+				mysql_apt_cfg="mysql-apt-config_0.8.30-1_all.deb"
+				wget -O ${mysql_apt_cfg} https://dev.mysql.com/get/${mysql_apt_cfg}
+				echo "mysql-apt-config mysql-apt-config/select-server select mysql-8.4-lts" | debconf-set-selections
+				apt-get install -y ./${mysql_apt_cfg}
+				apt-get update
+				apt-get install -y libmysqlclient24
+				rm -f ${mysql_apt_cfg}
+			fi
+		else
+			$pkg_mgr install -y https://dev.mysql.com/get/mysql84-community-release-el9-1.noarch.rpm
+			$pkg_mgr install -y mysql-community-libs --nogpgcheck
+		fi
+		ldconfig
 	fi
 	#
 	# Configure things in and mount the appropriate item.
